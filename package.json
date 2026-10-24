@@ -1,0 +1,13 @@
+{
+  "name": "doc-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:api": "npm run start -w doc-api",
+    "dev:web": "npm run dev -w doc-web"
+  }
+}

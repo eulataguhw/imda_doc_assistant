@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: oklch(0.985 0.004 90);
+  --foreground: oklch(0.21 0.01 70);
+  --muted: oklch(0.94 0.006 80);
+  --accent: oklch(0.62 0.21 275);
+  --ready: oklch(0.62 0.15 155);
+  --processing: oklch(0.72 0.14 80);
+  --error: oklch(0.60 0.19 25);
+}
+html.dark {
+  --background: oklch(0.19 0.008 280);
+  --foreground: oklch(0.93 0.005 80);
+  --muted: oklch(0.26 0.008 280);
+  --accent: oklch(0.72 0.18 280);
+  --ready: oklch(0.74 0.14 155);
+  --processing: oklch(0.80 0.13 80);
+  --error: oklch(0.71 0.16 25);
+}
+
+/* Chat streaming "typing" indicator (three staggered dots). */
+@keyframes sd-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+/* Thin, token-colored scrollbar for the document content preview. */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--muted);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+data/*.db*
+*.tsbuildinfo
+.DS_Store
+.superdesign/tmp/
+.npm-cache/
+.pnpm-store/
+.sd-drafts/
+data/ollama-models/
