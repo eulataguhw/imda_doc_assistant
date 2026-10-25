@@ -15,14 +15,11 @@ db.exec(`CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );`);
 
-// Seed three sample documents (one per status) on first run so the library UI
-// can be verified against all badge states. Idempotent: skipped once any row exists.
-// PONYTAIL: dev-only sample data, not real ingested docs; ceiling: replaced by M4 upload flow;
-// upgrade: drop this block when ingestion writes real rows; trigger: first real upload lands.
-const { n } = db.prepare("SELECT COUNT(*) AS n FROM documents").get() as { n: number };
-if (n === 0) {
-  const insert = db.prepare("INSERT INTO documents (id, title, status) VALUES (?, ?, ?)");
-  insert.run("doc-sample-ready", "Quarterly onboarding guide (sample)", "ready");
-  insert.run("doc-sample-processing", "Vendor contract — embedding (sample)", "processing");
-  insert.run("doc-sample-error", "Legacy PDF — parse failed (sample)", "error");
+// M4 migration: add error_reason for databases created before it. Guarded + idempotent.
+const columns = db.prepare("PRAGMA table_info(documents)").all() as unknown as Array<{ name: string }>;
+if (!columns.some((c) => c.name === "error_reason")) {
+  db.exec("ALTER TABLE documents ADD COLUMN error_reason TEXT");
 }
+
+// One-shot cleanup of the dev-only sample rows seeded by M1–M3 (idempotent).
+db.prepare("DELETE FROM documents WHERE id LIKE 'doc-sample-%'").run();

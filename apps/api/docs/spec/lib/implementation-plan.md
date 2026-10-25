@@ -22,3 +22,26 @@
 
 ## Deviations
 None — `node:sqlite` choice is deliberate (see PRD assumptions).
+
+---
+
+## M4 — config + migration (spec gate 2026-10-25)
+
+### Design delta
+- `env.ts`: add `qdrantBaseUrl` — env `QDRANT_BASE_URL`, default `http://localhost:6333`. Embedding endpoint reuses the existing `llmBaseUrl` (Ollama OpenAI-compatible `/embeddings`); no new LLM env var.
+- `db.ts`: remove the dev-only seed block (PONYTAIL trigger satisfied — real uploads now exist). Add guarded migration: read `PRAGMA table_info(documents)`; if `error_reason` absent, run `ALTER TABLE documents ADD COLUMN error_reason TEXT`. Idempotent on fresh and existing DBs.
+
+### File operations (M4)
+| Path | Op | Reason |
+| --- | --- | --- |
+| `apps/api/src/lib/env.ts` | modify | `qdrantBaseUrl` config field |
+| `apps/api/src/lib/db.ts` | modify | drop seed block; guarded `error_reason` migration |
+
+### Requirement → step mapping (M4)
+| Req | Step | Check |
+| --- | --- | --- |
+| API-LIB-4 | PRAGMA check + ALTER in db.ts | boot on existing DB, then fresh DB — both succeed; column present exactly once |
+| M4-SEED | remove seed block | list endpoint shows only real rows after first upload |
+
+## Deviations (M4)
+None.

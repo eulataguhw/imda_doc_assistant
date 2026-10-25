@@ -1,11 +1,12 @@
 # Working Memory — Doc Assistant
 
-- **Updated:** 2026-10-24
-- **Goal:** M3 complete and verified (library list/detail + status badges + semantic palette); paused at the milestone boundary awaiting user approval for M4 (ingestion/upload).
+- **Updated:** 2026-10-25
+- **Goal:** M4 ingestion/upload — `POST /api/documents` (JSON `{title, content}`) → chunk → Ollama embed → Qdrant upsert, status lifecycle + error reasons, web upload control. Running autonomously per user instruction; no commits without approval.
 
 ## Current state
 - Monorepo at `doc-assistant/`: `apps/api` (NestJS, builds & serves on :3001) + `apps/web` (React SPA, builds) + `data/`.
-- **M3 verified headlessly:** API `GET /api/documents` returns 3 seeded docs (ready/processing/error); web build exit 0; emitted CSS has `--ready/--processing/--error` in both `:root` + `.dark`; emitted JS has badge var refs + `` fetch(`${BASE}/documents`) ``; SPA :5173 → HTTP 200 and `/api/documents` proxy hop returns all 3 statuses.
+- **M3 verified headlessly:** API `GET /api/documents` returns 3 seeded docs (ready/processing/error); web build exit 0; emitted CSS has `--ready/--processing/--error` in both `:root` + `.dark`; SPA :5173 → HTTP 200 and `/api/documents` proxy hop returns all 3 statuses.
+- **M4 implemented + verified live (2026-10-25):** all acceptance criteria exercised against running `doc-qdrant` + `doc-ollama`. Happy path → 201 `ready`, Qdrant point payload matches spec; Ollama-down → `error` + labeled reason `"Embedding request failed: fetch failed"`; missing title/whitespace content → 400; seed rows cleared; web round-trip through Vite proxy :5173 → 201 `ready` + Qdrant point. Evidence in all four change records (`docs/spec/_cross-cutting/m4-ingestion.md` authoritative). **Not committed** (approval policy: ask).
 - **One step not done:** pixel-level visual confirmation of badge colors — requires opening http://localhost:5173 in a browser (no browser/screenshot tool in this environment).
 
 ## Decisions (this session)
@@ -23,12 +24,12 @@
 - Status enum `"ready" | "processing" | "error"` is authoritative across `documents.service.ts`, `lib/api.ts`, `StatusBadge.tsx`, and the DB `CHECK` constraint — keep in sync.
 
 ## Risks / open items
-- Web views are build + headless-pipeline verified only; no interactive browser pass yet (M1, M2, M3 all share this gap).
+- Web views are build + headless-pipeline verified only; no interactive browser pass yet (M1–M4 all share this gap).
 - API DB path is cwd-relative (`../../data/doc-assistant.db`) — always run the server with cwd `apps/api`, never repo root.
-- Seed rows are dev-only samples; must be dropped when M4 writes real rows (PONYTAIL marker in `db.ts`).
+- Qdrant 1.20.0 REST surface: collection-create + points-upsert are now **PUT** (not POST); both fixed in `ingest.ts` and verified live.
 
 ## Next action
-Await user approval → spec M4 (PRD/plan updates in API `documents` + `lib` packages first) → implement ingestion/upload; drop the dev-only seed on first real row.
+M4 milestone boundary reached — report delivered. Remaining: commit/push on explicit user approval; candidate M5 = PDF/multipart ingest or async job queue (per `ingest.ts` PONYTAIL marker).
 
 ## Links
 [Docs index](../README.md) · [Development plan](../development-plan.md) · [M3 change record](../spec/_cross-cutting/m3-status-badges.md) · [Spec index](../spec/README.md)

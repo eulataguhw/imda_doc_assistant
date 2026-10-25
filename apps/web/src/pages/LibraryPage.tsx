@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { ArrowRight, FileText, FileWarning, Upload } from "lucide-react";
-import { listDocuments, type Document } from "../lib/api";
+import { listDocuments, uploadDocument, type Document } from "../lib/api";
 import { getDocDisplayMeta } from "../lib/docMeta";
 import { StatusBadge } from "../components/StatusBadge";
 
@@ -23,7 +23,7 @@ function Card({ doc }: { doc: Document }) {
       ? `${meta.pages} pages · ${meta.sizeLabel} · ${meta.uploadedAt}`
       : doc.status === "processing"
         ? "Processing metadata…"
-        : "Failed to extract text from PDF";
+        : "Ingestion failed";
 
   return (
     <article
@@ -103,34 +103,126 @@ function Section({ label, docs }: { label: string; docs: Document[] }) {
   );
 }
 
+function UploadPanel({ onUploaded }: { onUploaded: () => void }) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (busy) return;
+    const t = title.trim();
+    const c = content.trim();
+    if (!t || !c) {
+      setError("Provide both a title and some content before submitting.");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await uploadDocument({ title: t, content: c });
+      onUploaded();
+      setTitle("");
+      setContent("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-10 flex flex-col gap-4 rounded-xl border bg-white/50 p-5 dark:bg-black/5"
+      style={{ borderColor: "var(--muted)" }}
+    >
+      <div>
+        <h2
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--foreground)", opacity: 0.5 }}
+        >
+          Add document
+        </h2>
+        <p className="mt-1 text-xs" style={{ color: "var(--foreground)", opacity: 0.6 }}>
+          Paste the title and text content of a document to index it.
+        </p>
+      </div>
+
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span style={{ color: "var(--foreground)", opacity: 0.6 }}>Title</span>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={busy}
+          placeholder="Quarterly report"
+          className="w-full rounded-md border bg-[var(--background)] px-3 py-2 text-sm"
+          style={{ borderColor: "var(--muted)" }}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span style={{ color: "var(--foreground)", opacity: 0.6 }}>Content</span>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          disabled={busy}
+          rows={5}
+          placeholder="Paste the document text here…"
+          className="w-full resize-y rounded-md border bg-[var(--background)] px-3 py-2 text-sm"
+          style={{ borderColor: "var(--muted)" }}
+        />
+      </label>
+
+      {error && (
+        <p className="text-sm" style={{ color: "var(--error)" }}>
+          {error}
+        </p>
+      )}
+
+      <div>
+        <button
+          type="submit"
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
+        >
+          <Upload className="size-4" /> {busy ? "Adding…" : "Add document"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function LibraryPage() {
   const [docs, setDocs] = useState<Document[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    listDocuments()
+  const load = () => {
+    setError(null);
+    return listDocuments()
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   }, []);
 
   return (
     <main className="flex-1 w-full">
       <div className="mx-auto w-full max-w-4xl p-6">
-        <header className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--foreground)", opacity: 0.6 }}>
-              Upload PDFs to start asking questions across your documents.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
-          >
-            <Upload className="size-4" /> Upload PDF
-          </button>
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--foreground)", opacity: 0.6 }}>
+            Add documents to start asking questions across your library.
+          </p>
         </header>
+
+        <UploadPanel onUploaded={load} />
 
         {error && (
           <p className="text-sm" style={{ color: "var(--error)" }}>

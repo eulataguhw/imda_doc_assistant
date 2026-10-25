@@ -91,7 +91,9 @@ export function DocumentDetailPage() {
           >
             <StatusBadge status={doc.status} variant="soft" />
             {isError ? (
-              <span style={{ color: "var(--error)" }}>Failed to extract text from PDF</span>
+              <span style={{ color: "var(--error)" }}>
+                {doc.errorReason ?? "Ingestion failed — see API logs."}
+              </span>
             ) : (
               <>
                 <span aria-hidden>•</span>

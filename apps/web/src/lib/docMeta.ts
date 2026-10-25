@@ -43,7 +43,7 @@ export function getDocDisplayMeta(doc: Document): DocDisplayMeta {
 
   const excerpt =
     doc.status === "error"
-      ? "Extraction failed — we couldn't read the text layer of this file. Retry the upload to try again, or check that the PDF isn't image-only."
+      ? "Ingestion failed for this document. Check the API logs for the specific reason, or retry the upload from the library."
       : doc.status === "processing"
         ? "We're still indexing this document. Once it's ready you'll be able to ask questions about its contents and cite exact pages from here."
         : `EXECUTIVE SUMMARY: ${doc.title} reports strong performance for the period, with key figures trending upward year over year. The sections below break down departmental detail and forward-looking projections. Use the chat surface to ask specific questions and cite exact pages.`;
