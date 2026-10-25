@@ -1,44 +1,64 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { ArrowRight, FileText, FileWarning, Upload } from "lucide-react";
-import { listDocuments, uploadDocument, type Document } from "../lib/api";
+import { FileText, MessageSquarePlus, Trash2 } from "lucide-react";
+import { deleteDocument, listDocuments, type Document } from "../lib/api";
 import { getDocDisplayMeta } from "../lib/docMeta";
 import { StatusBadge } from "../components/StatusBadge";
+import { toast } from "../components/Toaster";
 
-type Group = "ready" | "processing" | "error";
-
-const SECTION_ORDER: { key: Group; label: string }[] = [
-  { key: "ready", label: "Ready" },
-  { key: "processing", label: "Processing" },
-  { key: "error", label: "Errors" },
-];
-
-function Card({ doc }: { doc: Document }) {
+/**
+ * Card for a chat-origin document (M8 WEB-M8-9). These are files the user
+ * dropped into the chat composer; they're stored in SQLite (no embedding) and
+ * attached to a conversation. No "Ask about this" — that's RAG-scoped and lives
+ * on the Knowledge page. Delete is supported (M8: remove documents from Library).
+ */
+function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
   const meta = getDocDisplayMeta(doc);
-  const isError = doc.status === "error";
-  const isProcessing = doc.status === "processing";
+  const [deleting, setDeleting] = useState(false);
 
-  const subtitle =
-    doc.status === "ready"
-      ? `${meta.pages} pages · ${meta.sizeLabel} · ${meta.uploadedAt}`
-      : doc.status === "processing"
-        ? "Processing metadata…"
-        : "Ingestion failed";
+  const subtitle = [
+    meta.pages != null ? `${meta.pages} pages` : null,
+    meta.sizeLabel,
+    meta.uploadedAt,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
+
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteDocument(doc.id);
+      toast("success", `Removed “${doc.title}”`);
+      onDeleted();
+    } catch (err) {
+      toast("error", `Remove failed — ${err instanceof Error ? err.message : String(err)}`);
+      setDeleting(false);
+    }
+  }
 
   return (
     <article
       className="flex flex-col gap-4 rounded-xl border bg-white/50 p-5 dark:bg-black/5"
       style={{ borderColor: "var(--muted)" }}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="rounded-lg p-3" style={{ backgroundColor: "var(--muted)" }}>
-          {isError ? (
-            <FileWarning className="size-6" style={{ color: "var(--error)" }} />
-          ) : (
-            <FileText className="size-6" style={{ color: "var(--accent)" }} />
-          )}
+          <FileText className="size-6" style={{ color: "var(--accent)" }} />
         </div>
-        <StatusBadge status={doc.status} variant="solid" />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={doc.status} variant="solid" />
+          <button
+            type="button"
+            aria-label={`Remove chat document: ${doc.title}`}
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-md p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
 
       <div className="min-w-0">
@@ -47,162 +67,50 @@ function Card({ doc }: { doc: Document }) {
             {doc.title}
           </Link>
         </h3>
-        <p
-          className="mt-1 text-xs"
-          style={isError ? { color: "var(--error)" } : { color: "var(--foreground)", opacity: 0.6 }}
-        >
-          {subtitle}
-        </p>
-      </div>
-
-      <div className="mt-auto border-t pt-4" style={{ borderColor: "var(--muted)" }}>
-        {doc.status === "ready" && (
-          <Link
-            to={`/chat?docId=${encodeURIComponent(doc.id)}`}
-            className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-            style={{ color: "var(--accent)" }}
-          >
-            Ask about this <ArrowRight className="size-4" />
-          </Link>
-        )}
-        {isProcessing && (
-          <span className="text-sm italic" style={{ color: "var(--foreground)", opacity: 0.5 }}>
-            Indexing…
-          </span>
-        )}
-        {isError && (
-          <button
-            type="button"
-            className="text-sm font-medium hover:underline"
-            style={{ color: "var(--accent)" }}
-          >
-            Retry upload
-          </button>
+        {subtitle && (
+          <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            {subtitle}
+          </p>
         )}
       </div>
     </article>
   );
 }
 
-function Section({ label, docs }: { label: string; docs: Document[] }) {
-  if (docs.length === 0) return null;
+function SkeletonRows() {
+  // Presentational loading placeholder — hidden from AT; a single sr-only label is announced instead.
   return (
-    <section className="space-y-4">
-      <h2
-        className="text-xs font-semibold uppercase tracking-wider"
-        style={{ color: "var(--foreground)", opacity: 0.5 }}
-      >
-        {label}
-      </h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {docs.map((doc) => (
-          <Card key={doc.id} doc={doc} />
-        ))}
-      </div>
-    </section>
+    <div aria-hidden="true" className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 rounded-xl border bg-white/50 p-4 dark:bg-black/5"
+          style={{ borderColor: "var(--muted)" }}
+        >
+          <div className="size-10 shrink-0 rounded-lg" style={{ backgroundColor: "var(--muted)" }} />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-1/3 rounded" style={{ backgroundColor: "var(--muted)" }} />
+            <div className="h-3 w-1/2 rounded" style={{ backgroundColor: "var(--muted)" }} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function UploadPanel({ onUploaded }: { onUploaded: () => void }) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (busy) return;
-    const t = title.trim();
-    const c = content.trim();
-    if (!t || !c) {
-      setError("Provide both a title and some content before submitting.");
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      await uploadDocument({ title: t, content: c });
-      onUploaded();
-      setTitle("");
-      setContent("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="mb-10 flex flex-col gap-4 rounded-xl border bg-white/50 p-5 dark:bg-black/5"
-      style={{ borderColor: "var(--muted)" }}
-    >
-      <div>
-        <h2
-          className="text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--foreground)", opacity: 0.5 }}
-        >
-          Add document
-        </h2>
-        <p className="mt-1 text-xs" style={{ color: "var(--foreground)", opacity: 0.6 }}>
-          Paste the title and text content of a document to index it.
-        </p>
-      </div>
-
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span style={{ color: "var(--foreground)", opacity: 0.6 }}>Title</span>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          disabled={busy}
-          placeholder="Quarterly report"
-          className="w-full rounded-md border bg-[var(--background)] px-3 py-2 text-sm"
-          style={{ borderColor: "var(--muted)" }}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span style={{ color: "var(--foreground)", opacity: 0.6 }}>Content</span>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          disabled={busy}
-          rows={5}
-          placeholder="Paste the document text here…"
-          className="w-full resize-y rounded-md border bg-[var(--background)] px-3 py-2 text-sm"
-          style={{ borderColor: "var(--muted)" }}
-        />
-      </label>
-
-      {error && (
-        <p className="text-sm" style={{ color: "var(--error)" }}>
-          {error}
-        </p>
-      )}
-
-      <div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
-        >
-          <Upload className="size-4" /> {busy ? "Adding…" : "Add document"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
+/**
+ * Library page (M8 WEB-M8-9) — lists ONLY chat-origin documents (`origin=chat`),
+ * i.e. files the user dropped into the chat composer. No upload dropzone here:
+ * uploads happen inline in the Chat composer and land in this list. Delete is
+ * supported per document.
+ */
 export function LibraryPage() {
   const [docs, setDocs] = useState<Document[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setError(null);
-    return listDocuments()
+    return listDocuments("chat")
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
@@ -217,37 +125,55 @@ export function LibraryPage() {
       <div className="mx-auto w-full max-w-4xl p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--foreground)", opacity: 0.6 }}>
-            Add documents to start asking questions across your library.
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Documents you've uploaded in chat. They attach to your conversations and are cited inline.
           </p>
         </header>
 
-        <UploadPanel onUploaded={load} />
-
         {error && (
-          <p className="text-sm" style={{ color: "var(--error)" }}>
-            Failed to load documents: {error}
-          </p>
+          <div
+            role="alert"
+            className="mb-6 flex flex-col gap-3 rounded-lg border p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderColor: "var(--error)", color: "var(--error)" }}
+          >
+            <p>Failed to load library documents: {error}</p>
+            <button
+              type="button"
+              onClick={load}
+              className="shrink-0 rounded-md px-3 py-1.5 font-medium"
+              style={{ backgroundColor: "var(--error)", color: "var(--badge-solid-text)" }}
+            >
+              Retry
+            </button>
+          </div>
         )}
 
         {docs === null && !error && (
-          <p className="text-sm" style={{ color: "var(--foreground)", opacity: 0.6 }}>
-            Loading documents…
-          </p>
+          <>
+            <span className="sr-only">Loading library documents…</span>
+            <SkeletonRows />
+          </>
         )}
 
         {docs !== null && docs.length === 0 && (
-          <p className="text-sm">No documents yet.</p>
+          <div
+            className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center"
+            style={{ borderColor: "var(--muted)" }}
+          >
+            <MessageSquarePlus className="size-8" style={{ color: "var(--text-secondary)" }} />
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              No documents uploaded in chat yet.
+            </p>
+            <Link to="/chat" className="text-sm font-medium hover:underline" style={{ color: "var(--accent)" }}>
+              Open a conversation and drag & drop a PDF or DOCX into the composer →
+            </Link>
+          </div>
         )}
 
         {docs !== null && docs.length > 0 && (
-          <div className="space-y-12">
-            {SECTION_ORDER.map(({ key, label }) => (
-              <Section
-                key={key}
-                label={label}
-                docs={docs.filter((d) => d.status === key)}
-              />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {docs.map((doc) => (
+              <Card key={doc.id} doc={doc} onDeleted={load} />
             ))}
           </div>
         )}

@@ -1,35 +1,41 @@
 # Working Memory — Doc Assistant
 
-- **Updated:** 2026-10-25
-- **Goal:** M4 ingestion/upload — `POST /api/documents` (JSON `{title, content}`) → chunk → Ollama embed → Qdrant upsert, status lifecycle + error reasons, web upload control. Running autonomously per user instruction; no commits without approval.
+- **Updated:** 2026-10-26 (M8 implemented + verified: root build + API/web vitest + Playwright E2E all green)
+- **Goal status:** M8 done and paused at the milestone boundary. No commits yet (M4+M5+M6+M7+M8 all uncommitted — approval required).
 
 ## Current state
-- Monorepo at `doc-assistant/`: `apps/api` (NestJS, builds & serves on :3001) + `apps/web` (React SPA, builds) + `data/`.
-- **M3 verified headlessly:** API `GET /api/documents` returns 3 seeded docs (ready/processing/error); web build exit 0; emitted CSS has `--ready/--processing/--error` in both `:root` + `.dark`; SPA :5173 → HTTP 200 and `/api/documents` proxy hop returns all 3 statuses.
-- **M4 implemented + verified live (2026-10-25):** all acceptance criteria exercised against running `doc-qdrant` + `doc-ollama`. Happy path → 201 `ready`, Qdrant point payload matches spec; Ollama-down → `error` + labeled reason `"Embedding request failed: fetch failed"`; missing title/whitespace content → 400; seed rows cleared; web round-trip through Vite proxy :5173 → 201 `ready` + Qdrant point. Evidence in all four change records (`docs/spec/_cross-cutting/m4-ingestion.md` authoritative). **Not committed** (approval policy: ask).
-- **One step not done:** pixel-level visual confirmation of badge colors — requires opening http://localhost:5173 in a browser (no browser/screenshot tool in this environment).
+- Monorepo at `doc-assistant/`: `apps/api` (NestJS, :3001) + `apps/web` (React SPA, builds; dev proxy :5173 → :3001) + `data/doc-assistant.db` (node:sqlite). Backends: Ollama :11434 (nomic-embed-text), llama.cpp :8888 (`Qwen3.8-27B-Uncensored`, thinking model), Qdrant :6333 (collection `documents`).
+- **M8 implemented + verified (2026-10-26):** v3-M5 feature set — conversation history, selectable "Scoped to", real markdown + inline citation chips, in-chat drag-drop direct upload (parse → full text to LLM, no RAG), Knowledge/Library split, document deletion, and a unit+E2E harness. Schema: `documents.origin` (`knowledge`|`chat`) + nullable `content`; new `sessions`/`messages` tables. API: `POST /chat/documents`, `GET/POST /chat/sessions[/:id]`, `DELETE /documents/:id` (+Qdrant points for knowledge), origin filter, direct-mode prompt (one `citation` per attached doc). Web: ChatPage flagship (react-markdown+remark-gfm, `[n]`→chip → `/documents/:id`, scoped picker, composer dropzone, new/revisit history); Knowledge (renamed Library, keeps upload) + new Library (chat-only, no upload). **Gates green:** root build exit 0 · API vitest 18/18 · web vitest 20/20 · Playwright E2E 5/5 (26.2s) vs live stack. New deps: api `vitest`; web `react-markdown`,`remark-gfm` + devDeps `vitest`,`jsdom`,`@testing-library/*`,`@playwright/test`.
+- **M7 implemented + verified headlessly (2026-10-25):** v3-M4 *Polish & a11y*. Web-only. Empty/loading/error states (Library `SkeletonRows` + `role="alert"` error w/ Retry; Chat `aria-live="polite"` streaming region), micro-interactions (send disabled, focus return — verified from M6), and WCAG 2.1 AA: theme-aware `--focus-ring` + global `:focus-visible`, `prefers-reduced-motion` guard (CSS-only), and a contrast pass that surfaced the hidden failure class — `foreground`+opacity muted text (0.4–0.6) fails dark-theme AA → replaced by a real `--text-secondary` token across Library/DocumentDetail/Chat; dark `--accent` raised, solid-badge text via `--badge-solid-text`, Toaster dismiss icon 60→85%. A **second pass** caught the same idiom as *Tailwind opacity classes* (missed by the inline-style grep): `AppShell` inactive nav links (2.35:1 dark) and `ChatPage` "Scoped to:" label (3.51:1 dark) → `[color:var(--text-secondary)]`; theme-toggle icon left at 70% (non-text, passes 3:1). Web build exit 0; tokens/rules confirmed in the emitted bundle. No new deps.
+- **M6 implemented + verified live (2026-10-25):** real RAG chat — `POST /api/chat/stream` retrieves top-k from Qdrant (global or scoped to `documentIds`), assembles a context-grounded prompt with ≤6-message client-sent history, streams LLM deltas over the frozen flat SSE contract (`citation`* → `chunk`* → `done` | `error`); pre-first-byte failure → JSON 502; validation → 400. ChatPage consumes the real stream (fakes deleted), citation chips link `/documents/:id`. Ingest now stores LLM summary (best-effort: failure → warn + continue, row `ready`) plus real `pages`/`size_bytes`; DocumentDetailPage shows them (docMeta fallback only for legacy rows). All acceptance criteria exercised — evidence table in the authoritative record.
+- **M5 verified live (2026-10-25):** multipart upload → extraction (pdfjs/mammoth) → queue → `ready`; Qdrant points carry extracted text; all rejection paths correct; provider switch proven via mock endpoint.
+- **M4 verified live (2026-10-25):** ingest pipeline happy path + Ollama-down error labeling + 400s.
+- **Env note:** `apps/api/.env` was created by the user (inline env vars used for test boots; real process env overrides `--env-file`). CC Safety Net still blocks bash touching `.env` basenames.
 
-## Decisions (this session)
+## Decisions (M6–M7, recorded)
 | Decision | Rationale |
 | --- | --- |
-| Status tokens as CSS custom props + inline `style` var refs | Theme-agnostic; works without any Tailwind theme-config change |
-| Named page exports (`export function LibraryPage`) | Matches `App.tsx` named imports + existing `ChatPage` convention; default export broke the build |
-| Shared client `lib/api.ts` with typed `Document` union | Centralizes fetch; keeps the status enum in one place per app |
-| Typed row mapping for `.all()` (not direct cast) | node:sqlite returns `Record<string, SQLOutputValue>[]`; direct DTO cast fails tsc (TS2352) |
-| Dev-only idempotent seed (fixed ids, COUNT guard) | Lets the UI be verified against every badge state before real uploads exist |
-
-## Assumptions
-- Qdrant + Ollama available locally when M4 starts (URLs are env-configured).
-- User approves M4 scope before implementation starts.
-- Status enum `"ready" | "processing" | "error"` is authoritative across `documents.service.ts`, `lib/api.ts`, `StatusBadge.tsx`, and the DB `CHECK` constraint — keep in sync.
+| Muted text → real `--text-secondary` token (not per-site opacity) | The `foreground`+opacity idiom hid the effective color behind a blend and failed dark-theme AA in ~15 places; one theme-aware token is the smallest correct fix and keeps the contrast story auditable |
+| Contrast pass must grep BOTH inline `style` opacity AND Tailwind `opacity-*` classes | The first (inline-style) grep missed `AppShell` nav links + `ChatPage` "Scoped to:" label, both dark AA fails; a class-wide `opacity` sweep caught them. Two distinct syntaxes encode the same idiom |
+| Focus ring = CSS custom property + global `:focus-visible` | One place, theme-aware, no per-component duplication; WCAG 2.4.7 satisfied uniformly |
+| Reduced motion via CSS `@media (prefers-reduced-motion)` only | No JS matchMedia needed for this scope; PONYTAIL marker documents the ceiling/upgrade trigger |
+| Skeletons presentational (`aria-hidden` + single sr-only label) | AT gets one "loading" announcement, not N skeleton-node announcements |
+| Chunking stays paragraph-boundary packing | Semantic chunking costs an extra embedding pass for marginal gain at this corpus size; PONYTAIL marker documents upgrade trigger |
+| Summary is best-effort (warn + continue) | A failing chat model must not block the working embedding pipeline |
+| SSE contract frozen flat; client maps to nested events at parse boundary | M3 shipped it; only payloads became real (`citation` gains `page?`/`score`) |
+| History ≤6, client-sent, no server persistence | PONYTAIL: persistence is a later milestone (trigger: user asks to reload past chats) |
+| `with_payload: true` on Qdrant search | This Qdrant build omits payloads from `/points/search` hits otherwise |
 
 ## Risks / open items
-- Web views are build + headless-pipeline verified only; no interactive browser pass yet (M1–M4 all share this gap).
-- API DB path is cwd-relative (`../../data/doc-assistant.db`) — always run the server with cwd `apps/api`, never repo root.
-- Qdrant 1.20.0 REST surface: collection-create + points-upsert are now **PUT** (not POST); both fixed in `ingest.ts` and verified live.
+- Web views verified by code + built bundle + proxy round-trips; live click-through left to the user (no browser tooling).
+- API DB path is cwd-relative (`../../data/doc-assistant.db`) — boot from `apps/api/`.
+- Qwen3.8-27B-Uncensored streams `reasoning_content` before `content`; keep `LLM_MAX_TOKENS` ≥ 1024 or the reasoning phase can consume the whole budget (empty `content`, `finish_reason: length`).
+- Groq/Cerebras subagent routes were unavailable mid-run (both died); lead executed locally under the same plan — no quality deviation recorded.
 
 ## Next action
-M4 milestone boundary reached — report delivered. Remaining: commit/push on explicit user approval; candidate M5 = PDF/multipart ingest or async job queue (per `ingest.ts` PONYTAIL marker).
+1. User live click-through of http://localhost:5173 — Chat (attach→cited answer, RAG, new/revisit history), Knowledge (upload+delete), Library (chat-only list+remove) — both themes — to close the "manual" checks.
+2. Commit M4+M5+M6+M7+M8 on explicit user approval only (one combined commit recommended).
+3. Any new milestone starts from this boundary.
 
 ## Links
-[Docs index](../README.md) · [Development plan](../development-plan.md) · [M3 change record](../spec/_cross-cutting/m3-status-badges.md) · [Spec index](../spec/README.md)
+[Docs index](../README.md) · [Development plan](../development-plan.md) · [Master plan](../plan.md) · [M8 change record (authoritative)](../spec/_cross-cutting/m8-chat-experience.md) · [M7 change record (authoritative)](../spec/_cross-cutting/m7-polish-a11y.md) · [M6 change record (authoritative)](../spec/_cross-cutting/m6-rag-chat.md) · [Spec index](../spec/README.md)

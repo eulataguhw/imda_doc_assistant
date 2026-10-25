@@ -9,3 +9,5 @@ data/*.db*
 .pnpm-store/
 .sd-drafts/
 data/ollama-models/
+test-results/
+playwright-report/

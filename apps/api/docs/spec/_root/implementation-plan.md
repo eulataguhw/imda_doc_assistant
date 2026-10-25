@@ -23,3 +23,26 @@
 
 ## Deviations
 None.
+
+---
+
+## M5 — deps manifest + env loading (spec gate 2026-10-25)
+
+### Design delta
+- `package.json`: add `multer`, `@types/multer` (dev), `pdfjs-dist`, `mammoth`, `@types/mammoth` (dev). `start` script → `node --env-file=.env dist/main.js` (Node 24 built-in env loader — no dotenv dependency; `.env` is gitignored, created from the refreshed example).
+- `.env.example`: full ENV contract per [master plan](../../../../../../docs/plan.md) with defaults + commented Ollama / llama.cpp / cloud examples.
+
+### File operations (M5)
+| Path | Op | Reason |
+| --- | --- | --- |
+| `apps/api/package.json` | modify | upload deps; `--env-file` start script |
+| `apps/api/.env.example` | modify | full ENV contract + provider examples |
+| `apps/api/.env` | create | local values (gitignored) |
+
+### Requirement → step mapping (M5)
+| Req | Step | Check |
+| --- | --- | --- |
+| API-ROOT-5 | start script + example refresh | `npm run start -w doc-api` boots with `.env` loaded (log/port proof); key parity across env.ts / .env.example / docs/plan.md |
+
+## Deviations (M5)
+None.

@@ -46,8 +46,10 @@ export function StatusBadge({ status, variant = "solid", className }: StatusBadg
     );
   }
 
+  // --badge-solid-text is white in light theme, near-black in dark (M7 / WEB-M7-4),
+  // keeping white-on-color AA in both instead of a hardcoded #ffffff.
   return (
-    <span className={base} style={{ backgroundColor: `var(${token})`, color: "#ffffff" }}>
+    <span className={base} style={{ backgroundColor: `var(${token})`, color: "var(--badge-solid-text)" }}>
       {LABEL[status]}
     </span>
   );

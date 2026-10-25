@@ -8,6 +8,7 @@ The SPA needs a provider stack (theming, routing) and a persistent shell with na
 
 ## Scope
 - In (M1): provider stack, shell, routing, active-link styling, theme toggle.
+- In (M5): `App.tsx` mounts the shared `<Toaster/>` viewport once above routes (app-wide toast surface for upload rejections); `lib/api.ts` gains `uploadDocumentFile(file, title?)` (FormData POST `/api/documents/upload`) and an optional `progress?` field on the document DTO.
 - Out of scope: view internals (`pages` package), token definitions (`styles` package).
 
 ## Acceptance criteria

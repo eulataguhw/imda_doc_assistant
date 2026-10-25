@@ -8,6 +8,7 @@ The API needs typed environment configuration and the SQLite metadata store for 
 
 ## Scope
 - In: config (port, databasePath default `../../data/doc-assistant.db`, llmBaseUrl, llmModel, embedModel, **qdrantBaseUrl** — M4); DDL for `documents` + guarded `error_reason` migration (M4).
+- In (M5): provider-agnostic LLM config — `embedBaseUrl` (`EMBED_BASE_URL`, defaults to `llmBaseUrl`), `llmApiKey` (`LLM_API_KEY`, optional Bearer), `maxUploadMb` (`MAX_UPLOAD_MB`, default 10). Full contract: master plan [ENV section](../../../../../../docs/plan.md); **any key change must land in env.ts + .env.example + docs/plan.md together** (API-M5-8).
 - Out of scope: ingestion write logic (owned by the documents package), Qdrant point semantics (documents/ingest.ts).
 
 ## Acceptance criteria

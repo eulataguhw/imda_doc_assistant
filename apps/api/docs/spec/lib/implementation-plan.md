@@ -45,3 +45,28 @@ None — `node:sqlite` choice is deliberate (see PRD assumptions).
 
 ## Deviations (M4)
 None.
+
+---
+
+## M5 — provider-agnostic LLM config + upload cap (spec gate 2026-10-25)
+
+### Design delta
+`env.ts` gains three fields, all with safe defaults and no new dependency:
+- `embedBaseUrl` — env `EMBED_BASE_URL`, **defaults to `llmBaseUrl`** when unset (embeddings may run on a different box/provider than chat; Ollama ↔ llama.cpp ↔ cloud is config-only).
+- `llmApiKey` — env `LLM_API_KEY`, optional; callers attach `Authorization: Bearer …` only when set.
+- `maxUploadMb` — env `MAX_UPLOAD_MB`, default `10`.
+
+Contract rule (API-M5-8): every key must exist with matching meaning/default in `env.ts` + `.env.example` + [master plan ENV section](../../../../../../docs/plan.md), changed together.
+
+### File operations (M5)
+| Path | Op | Reason |
+| --- | --- | --- |
+| `apps/api/src/lib/env.ts` | modify | three config fields above |
+
+### Requirement → step mapping (M5)
+| Req | Step | Check |
+| --- | --- | --- |
+| API-M5-8 | env.ts + .env.example + docs/plan.md sync | diff of the three surfaces; `MAX_UPLOAD_MB=1` rejected a 2 MB file via `.env` pickup (`--env-file`) |
+
+## Deviations (M5)
+None.

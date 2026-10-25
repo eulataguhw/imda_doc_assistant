@@ -5,14 +5,14 @@ import { listDocuments, type Document } from "../lib/api";
 import { getDocDisplayMeta } from "../lib/docMeta";
 import { StatusBadge } from "../components/StatusBadge";
 
-function BackLink() {
+function BackLink({ to, label }: { to: string; label: string }) {
   return (
     <Link
-      to="/library"
+      to={to}
       className="inline-flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-80"
       style={{ color: "var(--accent)" }}
     >
-      <ArrowLeft className="size-4" /> Back to library
+      <ArrowLeft className="size-4" /> {label}
     </Link>
   );
 }
@@ -37,7 +37,7 @@ export function DocumentDetailPage() {
     return (
       <main className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
-          <BackLink />
+          <BackLink to="/knowledge" label="Back to knowledge" />
           <h1 className="text-xl font-semibold">{notFound ? "Not found" : "Document"}</h1>
           {error && (
             <p style={{ color: "var(--error)" }}>Failed to load: {error}</p>
@@ -54,9 +54,9 @@ export function DocumentDetailPage() {
     return (
       <main className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
-          <BackLink />
+          <BackLink to="/knowledge" label="Back to knowledge" />
           <h1 className="text-xl font-semibold">Document</h1>
-          <p style={{ color: "var(--foreground)", opacity: 0.6 }}>Loading…</p>
+          <p style={{ color: "var(--text-secondary)" }}>Loading…</p>
         </div>
       </main>
     );
@@ -67,7 +67,11 @@ export function DocumentDetailPage() {
 
   return (
     <main className="flex-1 mx-auto w-full max-w-4xl p-6">
-      <BackLink />
+      {doc.origin === "chat" ? (
+        <BackLink to="/library" label="Back to library" />
+      ) : (
+        <BackLink to="/knowledge" label="Back to knowledge" />
+      )}
 
       {/* Header: file icon + title + status/metadata */}
       <section className="mb-10 mt-6 flex items-start gap-6">
@@ -78,7 +82,7 @@ export function DocumentDetailPage() {
           {isError ? (
             <FileWarning className="size-10" style={{ color: "var(--error)" }} />
           ) : (
-            <FileText className="size-10" style={{ color: "var(--foreground)", opacity: 0.6 }} />
+            <FileText className="size-10" style={{ color: "var(--text-secondary)" }} />
           )}
         </div>
 
@@ -87,7 +91,7 @@ export function DocumentDetailPage() {
 
           <div
             className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
-            style={{ color: "var(--foreground)", opacity: 0.6 }}
+            style={{ color: "var(--text-secondary)" }}
           >
             <StatusBadge status={doc.status} variant="soft" />
             {isError ? (
@@ -96,10 +100,19 @@ export function DocumentDetailPage() {
               </span>
             ) : (
               <>
-                <span aria-hidden>•</span>
-                <span>{meta.pages} pages</span>
-                <span aria-hidden>•</span>
-                <span>{meta.sizeLabel}</span>
+                {/* Real API fields only; DOCX/legacy rows hide what the API can't provide. */}
+                {meta.pages != null && (
+                  <>
+                    <span aria-hidden>•</span>
+                    <span>{meta.pages} pages</span>
+                  </>
+                )}
+                {meta.sizeLabel && (
+                  <>
+                    <span aria-hidden>•</span>
+                    <span>{meta.sizeLabel}</span>
+                  </>
+                )}
                 <span aria-hidden>•</span>
                 <span>Uploaded {meta.uploadedAt}</span>
               </>
@@ -108,7 +121,7 @@ export function DocumentDetailPage() {
 
           <div
             className="mt-4 font-mono text-xs uppercase tracking-wider"
-            style={{ color: "var(--foreground)", opacity: 0.4 }}
+            style={{ color: "var(--text-secondary)" }}
           >
             ID: {doc.id}
           </div>
@@ -130,7 +143,7 @@ export function DocumentDetailPage() {
       <div className="space-y-3">
         <div
           className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--foreground)", opacity: 0.4 }}
+          style={{ color: "var(--text-secondary)" }}
         >
           <span>Preview</span>
           <span>Extracted Content</span>
@@ -142,7 +155,8 @@ export function DocumentDetailPage() {
           <div className="custom-scrollbar max-h-64 overflow-y-auto p-6">
             <p
               className="text-sm leading-relaxed"
-              style={isError ? { color: "var(--error)", opacity: 0.9 } : { color: "var(--foreground)", opacity: 0.8 }}
+              // Full-opacity --error and the AA-passing --text-secondary replace old opacity blends (M7 / WEB-M7-4).
+              style={isError ? { color: "var(--error)" } : { color: "var(--text-secondary)" }}
             >
               {meta.excerpt}
             </p>
