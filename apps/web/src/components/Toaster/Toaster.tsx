@@ -36,7 +36,9 @@ export function Toaster() {
           key={t.id}
           role="status"
           className="flex items-start gap-3 rounded-lg border bg-[var(--background)] p-3 shadow-lg"
-          style={{ borderColor: `color-mix(in oklab, var(${KIND_COLOR[t.kind]}) 40%, transparent)` }}
+          style={{
+            borderColor: `color-mix(in oklab, var(${KIND_COLOR[t.kind]}) 40%, transparent)`,
+          }}
         >
           <span
             className="mt-1 size-2 shrink-0 rounded-full"

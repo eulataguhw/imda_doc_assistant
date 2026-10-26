@@ -44,17 +44,25 @@ export class ChatService {
     const body: Record<string, unknown> = { vector, limit: TOP_K, with_payload: true };
     if (documentIds.length > 0) {
       // Bare payload keys (Qdrant >=1.7 filter shape), one must-clause per selected document.
-      body.filter = { must: documentIds.map((id) => ({ key: "document_id", match: { value: id } })) };
+      body.filter = {
+        must: documentIds.map((id) => ({ key: "document_id", match: { value: id } })),
+      };
     }
-    const res = await call("Document search failed", `${config.qdrantBaseUrl}/collections/documents/points/search`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
+    const res = await call(
+      "Document search failed",
+      `${config.qdrantBaseUrl}/collections/documents/points/search`,
+      {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      }
+    );
     if (!res.ok) {
       throw new Error(`Document search failed: ${res.status} ${res.statusText}`);
     }
-    const json = (await res.json()) as { result?: Array<{ score: number; payload?: Record<string, unknown> }> };
+    const json = (await res.json()) as {
+      result?: Array<{ score: number; payload?: Record<string, unknown> }>;
+    };
     return (json.result ?? []).map((p) => ({
       documentId: String(p.payload?.document_id ?? ""),
       title: String(p.payload?.title ?? ""),
@@ -65,26 +73,47 @@ export class ChatService {
   }
 
   /** API-M6-3/4: context-grounded prompt; history capped at last 6; empty retrieval still answers. */
-  buildMessages(question: string, history: HistoryMessage[], context: ChatCitation[]): Array<{ role: string; content: string }> {
+  buildMessages(
+    question: string,
+    history: HistoryMessage[],
+    context: ChatCitation[]
+  ): Array<{ role: string; content: string }> {
     const cleanHistory = history
-      .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim() !== "")
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" &&
+          m.content.trim() !== ""
+      )
       .slice(-HISTORY_CAP);
     const ctx = context.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
     const system = ctx
       ? `Answer the user's question using only the provided context. Reference context items by their bracket number where you draw on them. If the context is insufficient, say so briefly.\n\n${ctx}`
       : "No relevant context was found in the document corpus for this question. Answer briefly and clearly state that no supporting context was available.";
-    return [{ role: "system", content: system }, ...cleanHistory, { role: "user", content: question }];
+    return [
+      { role: "system", content: system },
+      ...cleanHistory,
+      { role: "user", content: question },
+    ];
   }
 
   /** M8 (API-CHAT-5): load chat-origin documents by id for direct answering. Skips ids with no stored content. */
   loadDirectContext(attachments: string[]): DirectDoc[] {
-    const stmt = db.prepare("SELECT id, title, content, pages FROM documents WHERE origin = 'chat' AND id = ?");
+    const stmt = db.prepare(
+      "SELECT id, title, content, pages FROM documents WHERE origin = 'chat' AND id = ?"
+    );
     const docs: DirectDoc[] = [];
     for (const id of attachments) {
       if (typeof id !== "string") continue;
-      const row = stmt.get(id) as unknown as { id: string; title: string; content: string | null; pages: number | null } | undefined;
+      const row = stmt.get(id) as unknown as
+        { id: string; title: string; content: string | null; pages: number | null } | undefined;
       if (row && typeof row.content === "string" && row.content.trim() !== "") {
-        docs.push({ documentId: row.id, title: row.title, ...(row.pages != null ? { pages: row.pages } : {}), text: row.content });
+        docs.push({
+          documentId: row.id,
+          title: row.title,
+          ...(row.pages != null ? { pages: row.pages } : {}),
+          text: row.content,
+        });
       }
     }
     return docs;
@@ -94,16 +123,25 @@ export class ChatService {
   buildMessagesDirect(
     question: string,
     history: HistoryMessage[],
-    docs: DirectDoc[],
+    docs: DirectDoc[]
   ): Array<{ role: string; content: string }> {
     const cleanHistory = history
-      .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim() !== "")
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" &&
+          m.content.trim() !== ""
+      )
       .slice(-HISTORY_CAP);
     const ctx = docs.map((d, i) => `[${i + 1}] ${d.title}:\n${d.text}`).join("\n\n");
     const system = ctx
       ? `Answer the user's question using only the attached document(s) below. Reference them by their bracket number [n] where you draw on them, and name the section or page where helpful. If an attachment does not contain the answer, say so briefly.\n\n${ctx}`
       : "No attached document was available for this question. Answer briefly and clearly state that no supporting attachment was provided.";
-    return [{ role: "system", content: system }, ...cleanHistory, { role: "user", content: question }];
+    return [
+      { role: "system", content: system },
+      ...cleanHistory,
+      { role: "user", content: question },
+    ];
   }
 
   /** Opens a streaming chat completion; throws (→ JSON 502) before the first response byte. */
@@ -146,7 +184,9 @@ export class ChatService {
           const payload = line.slice(5).trim();
           if (payload === "[DONE]") return;
           try {
-            const json = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+            const json = JSON.parse(payload) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
             const delta = json.choices?.[0]?.delta?.content;
             if (delta) yield delta;
           } catch {

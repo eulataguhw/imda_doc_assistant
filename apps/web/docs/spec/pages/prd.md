@@ -1,14 +1,17 @@
 # PRD — web/pages (Library + Chat views)
 
 ## Problem / baseline
+
 Two stub views exist so routing/shell can be verified; M2/M3 fill them with live behavior.
 
 ## Outcome
+
 - **Library** (M2/M4/M5): lists live `/api/documents` data; upload surface is a **drag-drop / click-to-browse dropzone** accepting `.pdf`/`.docx`, multiple files (M5 — replaces the M4 text panel, which stays at API level); rejected files get per-file error toasts and create no row; status badges (`processing`/`ready`/`error`) with a live **"indexing" progress line** while rows are `processing` (poll-driven).
 - **Document detail**: shows the real `errorReason` for failed ingests instead of PDF-asserting copy (M4).
 - **Chat** (M3): question input + document selection; consumes `POST /api/chat/stream`; renders streamed chunks into the current message; citation chips showing `documentId` (+ page in M3).
 
 ## Scope
+
 - In (M1): compilable stubs with honest placeholder copy.
 - In (M4): upload form on Library; error-reason display on detail; `uploadDocument()` client helper.
 - In (M5): **drag-drop / click-to-browse dropzone** on Library accepting `.pdf`/`.docx`, multiple files in one flow; per-file client validation (type + size) with one toast per rejected file naming the file and reason; loader while uploads in flight; `uploadDocumentFile()` client helper (`POST /api/documents/upload`); live "indexing" progress line on `processing` rows via list polling. Text upload panel removed from UI (JSON endpoint stays at API level).
@@ -16,18 +19,20 @@ Two stub views exist so routing/shell can be verified; M2/M3 fill them with live
 - Out of scope: empty-state polish beyond the error copy fix, `.txt`/`.md`, OCR, i18n. Session persistence is now in-scope (M8).
 
 ## Acceptance criteria
-| ID | Criterion |
-| --- | --- |
-| WEB-PAGE-1 | Both views render under their routes. (Build-verified M1; browser pass pending.) |
-| WEB-PAGE-2 (M2) | Library reflects `GET /api/documents` including status transitions. |
-| WEB-PAGE-3 (M3) | Chat streams chunks incrementally and renders citation chips from frames. |
-| WEB-PAGE-4 (M4) | Library upload control persists a document via `POST /api/documents` and the list refreshes with the final-status badge; detail page shows the real error reason for `error` docs. Status union in `lib/api.ts` stays identical to API/DB/badge surfaces. |
-| WEB-PAGE-5 (M5) | Dropzone accepts `.pdf`/`.docx`, multiple files; each rejected file (bad type / oversize) produces one toast naming the file + reason and adds no row; acceptable files upload via `POST /api/documents/upload`; loader visible while uploads in flight; list shows live indexing progress on `processing` rows until `ready`/`error`. See [m5-file-upload](../../../../../../docs/spec/_cross-cutting/m5-file-upload.md) WEB-M5-1…3. |
-| WEB-PAGE-6 (M8) | Assistant answers render real markdown (headings, bold, lists); inline `[n]` markers render as clickable chips linking to `/documents/:id` showing the source title (+ page when known). See [m8-chat-experience](../../../../../../docs/spec/_cross-cutting/m8-chat-experience.md) WEB-M8-1…3. |
-| WEB-PAGE-7 (M8) | "Scoped to" opens a picker of ready knowledge docs + "All documents"; selection scopes retrieval; drag-drop in the composer uploads a doc (visible in Library) and attaches it to the next message with inline citations. See m8 WEB-M8-4/5. |
-| WEB-PAGE-8 (M8) | New session can be started; past sessions revisited and persist across reload (server-backed, not only in-memory). See m8 WEB-M8-6/7. |
-| WEB-PAGE-9 (M8) | Knowledge page = RAG docs with upload; Library page = chat-origin docs only, no upload control; nav shows Knowledge + Library + Chat and `/` redirects to Knowledge. See m8 WEB-M8-8/9. |
-| WEB-PAGE-10 (M8) | Delete button removes a doc from its list and refreshes. See m8 WEB-M8-10. |
+
+| ID               | Criterion                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WEB-PAGE-1       | Both views render under their routes. (Build-verified M1; browser pass pending.)                                                                                                                                                                                                                                                                                                                                                      |
+| WEB-PAGE-2 (M2)  | Library reflects `GET /api/documents` including status transitions.                                                                                                                                                                                                                                                                                                                                                                   |
+| WEB-PAGE-3 (M3)  | Chat streams chunks incrementally and renders citation chips from frames.                                                                                                                                                                                                                                                                                                                                                             |
+| WEB-PAGE-4 (M4)  | Library upload control persists a document via `POST /api/documents` and the list refreshes with the final-status badge; detail page shows the real error reason for `error` docs. Status union in `lib/api.ts` stays identical to API/DB/badge surfaces.                                                                                                                                                                             |
+| WEB-PAGE-5 (M5)  | Dropzone accepts `.pdf`/`.docx`, multiple files; each rejected file (bad type / oversize) produces one toast naming the file + reason and adds no row; acceptable files upload via `POST /api/documents/upload`; loader visible while uploads in flight; list shows live indexing progress on `processing` rows until `ready`/`error`. See [m5-file-upload](../../../../../../docs/spec/_cross-cutting/m5-file-upload.md) WEB-M5-1…3. |
+| WEB-PAGE-6 (M8)  | Assistant answers render real markdown (headings, bold, lists); inline `[n]` markers render as clickable chips linking to `/documents/:id` showing the source title (+ page when known). See [m8-chat-experience](../../../../../../docs/spec/_cross-cutting/m8-chat-experience.md) WEB-M8-1…3.                                                                                                                                       |
+| WEB-PAGE-7 (M8)  | "Scoped to" opens a picker of ready knowledge docs + "All documents"; selection scopes retrieval; drag-drop in the composer uploads a doc (visible in Library) and attaches it to the next message with inline citations. See m8 WEB-M8-4/5.                                                                                                                                                                                          |
+| WEB-PAGE-8 (M8)  | New session can be started; past sessions revisited and persist across reload (server-backed, not only in-memory). See m8 WEB-M8-6/7.                                                                                                                                                                                                                                                                                                 |
+| WEB-PAGE-9 (M8)  | Knowledge page = RAG docs with upload; Library page = chat-origin docs only, no upload control; nav shows Knowledge + Library + Chat and `/` redirects to Knowledge. See m8 WEB-M8-8/9.                                                                                                                                                                                                                                               |
+| WEB-PAGE-10 (M8) | Delete button removes a doc from its list and refreshes. See m8 WEB-M8-10.                                                                                                                                                                                                                                                                                                                                                            |
 
 ## Assumptions / questions
+
 None blocking; M3 message model (local state vs zustand store) decided during M3 spec — zustand is installed for it. M5 toast infra reuses installed `zustand` (no new web deps).

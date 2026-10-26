@@ -7,5 +7,15 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov", "html"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.ts"],
+      // Boilerplate DI wiring + bootstrap carry no logic worth asserting; the suite targets
+      // controllers, services, and the extract/ingest/queue/env boundaries instead.
+      exclude: ["**/*.test.ts", "src/main.ts", "**/*.module.ts"],
+      thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+    },
   },
 });

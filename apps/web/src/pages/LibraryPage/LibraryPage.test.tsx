@@ -9,13 +9,14 @@ vi.mock("../../lib/api", () => ({
 
 import { LibraryPage } from "./LibraryPage";
 import { listDocuments, deleteDocument } from "../../lib/api";
-import { DOC_ORIGIN } from "../../lib/constants";
+import { useDocumentsStore } from "../../lib/stores/documents";
 
 const CHAT_DOCS = [{ id: "c1", title: "Uploaded Briefing", status: "ready", origin: "chat" }];
 
 describe("LibraryPage (M8 / WEB-M8-9)", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    useDocumentsStore.setState({ documents: [], loaded: false, error: null });
     (listDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(CHAT_DOCS);
   });
 
@@ -23,18 +24,21 @@ describe("LibraryPage (M8 / WEB-M8-9)", () => {
     render(
       <MemoryRouter>
         <LibraryPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     expect(await screen.findByText("Uploaded Briefing")).toBeTruthy();
-    expect(listDocuments).toHaveBeenCalledWith(DOC_ORIGIN.chat);
-    expect(screen.getByRole("button", { name: /Remove chat document: Uploaded Briefing/ })).toBeTruthy();
+    // The store fetches the full library once; origin filtering is client-side.
+    expect(listDocuments).toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Remove chat document: Uploaded Briefing/ })
+    ).toBeTruthy();
   });
 
   it("has NO upload/dropzone control (uploads happen in the Chat composer)", async () => {
     render(
       <MemoryRouter>
         <LibraryPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     await screen.findByText("Uploaded Briefing");
     expect(document.querySelector('input[type="file"]')).toBeNull();
@@ -44,10 +48,12 @@ describe("LibraryPage (M8 / WEB-M8-9)", () => {
     render(
       <MemoryRouter>
         <LibraryPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     await screen.findByText("Uploaded Briefing");
-    fireEvent.click(screen.getByRole("button", { name: /Remove chat document: Uploaded Briefing/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Remove chat document: Uploaded Briefing/ })
+    );
     await waitFor(() => expect(deleteDocument).toHaveBeenCalledWith("c1"));
   });
 });

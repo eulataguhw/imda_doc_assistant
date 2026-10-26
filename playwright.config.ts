@@ -16,8 +16,11 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 180_000, // LLM streaming can be slow on CPU
-  expect: { timeout: 30_000 },
+  // The local llama.cpp model is a slow reasoning model on CPU (~100s even for a
+  // 16-token completion), so real RAG answers can take several minutes. Give each
+  // test a generous budget; non-LLM assertions still finish in well under this.
+  timeout: 900_000,
+  expect: { timeout: 60_000 },
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

@@ -47,7 +47,12 @@ export class DocumentsController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() body: unknown): Promise<DocumentDto> {
     const { title, content } = (body ?? {}) as { title?: unknown; content?: unknown };
-    if (typeof title !== "string" || typeof content !== "string" || !title.trim() || !content.trim()) {
+    if (
+      typeof title !== "string" ||
+      typeof content !== "string" ||
+      !title.trim() ||
+      !content.trim()
+    ) {
       throw new BadRequestException("title and content are required");
     }
     return this.service.upload(title.trim(), content.trim());
@@ -59,7 +64,7 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor("file"))
   async uploadFile(
     @Req() req: Request,
-    @UploadedFile() file: UploadedFileLike | undefined,
+    @UploadedFile() file: UploadedFileLike | undefined
   ): Promise<DocumentDto> {
     if (!file || !Buffer.isBuffer(file.buffer)) {
       throw new BadRequestException("A multipart file field named 'file' is required");

@@ -42,18 +42,23 @@ describe("ChatService direct mode (M8 / API-CHAT-5)", () => {
       role: (i % 2 ? "assistant" : "user") as "user" | "assistant",
       content: `m${i}`,
     }));
-    const msgs = svc.buildMessagesDirect("Q", history, [{ documentId: "d", title: "T", text: "X" }]);
+    const msgs = svc.buildMessagesDirect("Q", history, [
+      { documentId: "d", title: "T", text: "X" },
+    ]);
     // system + 6 (capped) + user = 8.
     expect(msgs.length).toBe(8);
   });
 
   it("loadDirectContext returns only chat-origin docs that have stored content", () => {
-    db.prepare("INSERT INTO documents (id, title, status, origin, content, pages) VALUES (?, ?, 'ready', 'chat', ?, ?)")
-      .run("chat-1", "Chat Doc", "Hello from the chat doc.", 2);
-    db.prepare("INSERT INTO documents (id, title, status, origin, content) VALUES (?, ?, 'ready', 'knowledge', ?)")
-      .run("know-1", "Knowledge Doc", "Should be excluded by origin.");
-    db.prepare("INSERT INTO documents (id, title, status, origin, content) VALUES (?, ?, 'ready', 'chat', NULL)")
-      .run("chat-empty", "Empty Chat Doc");
+    db.prepare(
+      "INSERT INTO documents (id, title, status, origin, content, pages) VALUES (?, ?, 'ready', 'chat', ?, ?)"
+    ).run("chat-1", "Chat Doc", "Hello from the chat doc.", 2);
+    db.prepare(
+      "INSERT INTO documents (id, title, status, origin, content) VALUES (?, ?, 'ready', 'knowledge', ?)"
+    ).run("know-1", "Knowledge Doc", "Should be excluded by origin.");
+    db.prepare(
+      "INSERT INTO documents (id, title, status, origin, content) VALUES (?, ?, 'ready', 'chat', NULL)"
+    ).run("chat-empty", "Empty Chat Doc");
 
     const docs = svc.loadDirectContext(["chat-1", "know-1", "chat-empty", "missing"]);
     expect(docs.map((d) => d.documentId)).toEqual(["chat-1"]);

@@ -42,12 +42,8 @@ export function DocumentDetailPage() {
         <div className="space-y-3">
           <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
           <h1 className="text-xl font-semibold">{notFound ? "Not found" : "Document"}</h1>
-          {error && (
-            <p style={{ color: "var(--error)" }}>Failed to load: {error}</p>
-          )}
-          {notFound && !error && (
-            <p>No document with id "{id}".</p>
-          )}
+          {error && <p style={{ color: "var(--error)" }}>Failed to load: {error}</p>}
+          {notFound && !error && <p>No document with id "{id}".</p>}
         </div>
       </main>
     );

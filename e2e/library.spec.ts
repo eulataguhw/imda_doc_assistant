@@ -5,10 +5,17 @@ import path from "node:path";
 const SAMPLE = path.resolve(__dirname, "fixtures/sample.pdf");
 
 test.describe("Library — chat-uploaded documents only (no upload control)", () => {
-  test("lists a chat doc, exposes no upload input, and can remove the doc", async ({ page, request }) => {
+  test("lists a chat doc, exposes no upload input, and can remove the doc", async ({
+    page,
+    request,
+  }) => {
     // Create a chat-origin document via the API so we target it deterministically.
     const form = new FormData();
-    form.append("file", new Blob([readFileSync(SAMPLE)], { type: "application/pdf" }), "m8-lib.pdf");
+    form.append(
+      "file",
+      new Blob([readFileSync(SAMPLE)], { type: "application/pdf" }),
+      "m8-lib.pdf"
+    );
     const res = await request.post("/api/chat/documents", { multipart: form });
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as { id: string; title: string; origin: string };

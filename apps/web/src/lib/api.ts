@@ -59,7 +59,10 @@ export async function uploadChatDocument(file: File, title?: string): Promise<Do
   form.append("file", file);
   if (title) form.append("title", title);
   const res = await fetch(`${BASE}/chat/documents`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(await postErrorMessage(res, `POST ${BASE}/chat/documents → HTTP ${res.status}`));
+  if (!res.ok)
+    throw new Error(
+      await postErrorMessage(res, `POST ${BASE}/chat/documents → HTTP ${res.status}`)
+    );
   return (await res.json()) as Document;
 }
 
@@ -107,7 +110,8 @@ export async function createSession(title?: string): Promise<ChatSession> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(title ? { title } : {}),
   });
-  if (!res.ok) throw new Error(await postErrorMessage(res, `POST ${BASE}/chat/sessions → HTTP ${res.status}`));
+  if (!res.ok)
+    throw new Error(await postErrorMessage(res, `POST ${BASE}/chat/sessions → HTTP ${res.status}`));
   return (await res.json()) as ChatSession;
 }
 
@@ -138,7 +142,8 @@ export async function uploadDocument(input: { title: string; content: string }):
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(await postErrorMessage(res, `POST ${BASE}/documents → HTTP ${res.status}`));
+  if (!res.ok)
+    throw new Error(await postErrorMessage(res, `POST ${BASE}/documents → HTTP ${res.status}`));
   return (await res.json()) as Document;
 }
 
@@ -148,7 +153,10 @@ export async function uploadDocumentFile(file: File, title?: string): Promise<Do
   form.append("file", file);
   if (title) form.append("title", title);
   const res = await fetch(`${BASE}/documents/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(await postErrorMessage(res, `POST ${BASE}/documents/upload → HTTP ${res.status}`));
+  if (!res.ok)
+    throw new Error(
+      await postErrorMessage(res, `POST ${BASE}/documents/upload → HTTP ${res.status}`)
+    );
   return (await res.json()) as Document;
 }
 
@@ -213,7 +221,8 @@ export async function streamChat(params: {
     }),
     signal: params.signal,
   });
-  if (!res.ok) throw new Error(await postErrorMessage(res, `POST ${BASE}/chat/stream → HTTP ${res.status}`));
+  if (!res.ok)
+    throw new Error(await postErrorMessage(res, `POST ${BASE}/chat/stream → HTTP ${res.status}`));
   if (!res.body) throw new Error("POST /api/chat/stream → no response body");
 
   const reader = res.body.getReader();
@@ -257,7 +266,10 @@ export async function streamChat(params: {
         } else if (parsed.type === "done") {
           params.onEvent({ type: "done", data: {} });
         } else if (parsed.type === "error") {
-          params.onEvent({ type: "error", data: { message: String(parsed.reason ?? "Unknown chat error") } });
+          params.onEvent({
+            type: "error",
+            data: { message: String(parsed.reason ?? "Unknown chat error") },
+          });
         }
       }
     }

@@ -51,7 +51,7 @@ async function runJob(job: IndexJob): Promise<void> {
       db.prepare("UPDATE documents SET summary = ? WHERE id = ?").run(summary, job.documentId);
     } catch (e) {
       console.warn(
-        `[ingest] summary generation failed for "${job.title}": ${e instanceof Error ? e.message : String(e)} — continuing with empty summary`,
+        `[ingest] summary generation failed for "${job.title}": ${e instanceof Error ? e.message : String(e)} — continuing with empty summary`
       );
     }
 
@@ -68,10 +68,15 @@ async function runJob(job: IndexJob): Promise<void> {
     progress[job.documentId] = { stage: "upserting", done: 0, total: 1 };
     await upsertPoints(job.documentId, job.title, chunks, embeddings, pages);
 
-    db.prepare("UPDATE documents SET status = 'ready', error_reason = NULL WHERE id = ?").run(job.documentId);
+    db.prepare("UPDATE documents SET status = 'ready', error_reason = NULL WHERE id = ?").run(
+      job.documentId
+    );
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
-    db.prepare("UPDATE documents SET status = 'error', error_reason = ? WHERE id = ?").run(reason, job.documentId);
+    db.prepare("UPDATE documents SET status = 'error', error_reason = ? WHERE id = ?").run(
+      reason,
+      job.documentId
+    );
   } finally {
     delete progress[job.documentId];
   }
@@ -80,6 +85,6 @@ async function runJob(job: IndexJob): Promise<void> {
 /** Startup sweep: the queue is in-process, so any row still `processing` after a restart never finished. */
 export function markStaleProcessing(): void {
   db.prepare(
-    "UPDATE documents SET status = 'error', error_reason = 'server restarted during indexing' WHERE status = 'processing'",
+    "UPDATE documents SET status = 'error', error_reason = 'server restarted during indexing' WHERE status = 'processing'"
   ).run();
 }

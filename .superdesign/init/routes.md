@@ -6,12 +6,12 @@
 
 ## Route map
 
-| Path | Element | Summary |
-| --- | --- | --- |
-| `/` | `<Navigate to="/library" replace />` | Redirects to Library (default landing). |
-| `/library` | `LibraryPage` | Document collection: live list from `GET /api/documents`, each row links to `/documents/:id` with a `StatusBadge`. Plain-text loading/error/empty states. No upload UI yet. |
-| `/documents/:id` | `DocumentDetailPage` | Single document: back link, title, `StatusBadge`, mono id. No content preview or metadata (size/pages/date) yet. |
-| `/chat` | `ChatPage` | **Stub** — only an `<h1>Chat</h1>`; streaming messages + citation chips land in M4. |
+| Path             | Element                              | Summary                                                                                                                                                                     |
+| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`              | `<Navigate to="/library" replace />` | Redirects to Library (default landing).                                                                                                                                     |
+| `/library`       | `LibraryPage`                        | Document collection: live list from `GET /api/documents`, each row links to `/documents/:id` with a `StatusBadge`. Plain-text loading/error/empty states. No upload UI yet. |
+| `/documents/:id` | `DocumentDetailPage`                 | Single document: back link, title, `StatusBadge`, mono id. No content preview or metadata (size/pages/date) yet.                                                            |
+| `/chat`          | `ChatPage`                           | **Stub** — only an `<h1>Chat</h1>`; streaming messages + citation chips land in M4.                                                                                         |
 
 ## Full router config (App.tsx, render section)
 

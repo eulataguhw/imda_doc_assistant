@@ -25,7 +25,7 @@ export class ChatController {
   constructor(
     private readonly chat: ChatService,
     private readonly sessions: SessionsService,
-    private readonly documents: DocumentsService,
+    private readonly documents: DocumentsService
   ) {}
 
   // ── M8 (API-M8-2/3): conversation history. ────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export class ChatController {
   @UseInterceptors(FileInterceptor("file"))
   async uploadChatDocument(
     @Req() req: ExpressRequest,
-    @UploadedFile() file?: { buffer: Buffer; originalname: string },
+    @UploadedFile() file?: { buffer: Buffer; originalname: string }
   ): Promise<DocumentDto> {
     if (!file || !Buffer.isBuffer(file.buffer)) {
       throw new BadRequestException("A multipart file field named 'file' is required");
@@ -82,7 +82,10 @@ export class ChatController {
     }
 
     // M8 (API-M8-2/4): sessionId → server-side history + persistence.
-    const sessionId = typeof body.sessionId === "string" && body.sessionId.trim() ? body.sessionId.trim() : undefined;
+    const sessionId =
+      typeof body.sessionId === "string" && body.sessionId.trim()
+        ? body.sessionId.trim()
+        : undefined;
 
     // M8 (API-CHAT-5): attachments → direct mode (takes precedence over RAG scope for this message).
     let attachments: string[] = [];
@@ -98,7 +101,10 @@ export class ChatController {
     const clientHistory: HistoryMessage[] = Array.isArray(body.history)
       ? body.history.filter(
           (m): m is HistoryMessage =>
-            !!m && typeof m === "object" && (m.role === "user" || m.role === "assistant") && typeof m.content === "string",
+            !!m &&
+            typeof m === "object" &&
+            (m.role === "user" || m.role === "assistant") &&
+            typeof m.content === "string"
         )
       : [];
 
@@ -111,10 +117,14 @@ export class ChatController {
       const history = sessionId ? this.sessions.recentMessages(sessionId) : clientHistory;
       if (directMode) {
         directDocs = this.chat.loadDirectContext(attachments);
-        llmRes = await this.chat.openCompletion(this.chat.buildMessagesDirect(question, history, directDocs));
+        llmRes = await this.chat.openCompletion(
+          this.chat.buildMessagesDirect(question, history, directDocs)
+        );
       } else {
         citations = await this.chat.retrieve(question, documentIds);
-        llmRes = await this.chat.openCompletion(this.chat.buildMessages(question, history, citations));
+        llmRes = await this.chat.openCompletion(
+          this.chat.buildMessages(question, history, citations)
+        );
       }
     } catch (e) {
       res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
@@ -135,11 +145,22 @@ export class ChatController {
     // Emit citations: direct mode → one per attached doc; RAG → existing shape (with score).
     if (directMode) {
       for (const d of directDocs) {
-        send({ type: "citation", documentId: d.documentId, title: d.title, ...(d.pages != null ? { page: d.pages } : {}) });
+        send({
+          type: "citation",
+          documentId: d.documentId,
+          title: d.title,
+          ...(d.pages != null ? { page: d.pages } : {}),
+        });
       }
     } else {
       for (const c of citations) {
-        send({ type: "citation", documentId: c.documentId, title: c.title, ...(c.page != null ? { page: c.page } : {}), score: c.score });
+        send({
+          type: "citation",
+          documentId: c.documentId,
+          title: c.title,
+          ...(c.page != null ? { page: c.page } : {}),
+          score: c.score,
+        });
       }
     }
 
@@ -153,8 +174,16 @@ export class ChatController {
       send({ type: "done" });
       if (sessionId) {
         const refs = directMode
-          ? directDocs.map((d) => ({ documentId: d.documentId, title: d.title, ...(d.pages != null ? { page: d.pages } : {}) }))
-          : citations.map((c) => ({ documentId: c.documentId, title: c.title, ...(c.page != null ? { page: c.page } : {}) }));
+          ? directDocs.map((d) => ({
+              documentId: d.documentId,
+              title: d.title,
+              ...(d.pages != null ? { page: d.pages } : {}),
+            }))
+          : citations.map((c) => ({
+              documentId: c.documentId,
+              title: c.title,
+              ...(c.page != null ? { page: c.page } : {}),
+            }));
         this.sessions.appendMessage(sessionId, "user", question);
         this.sessions.appendMessage(sessionId, "assistant", fullText, refs);
       }

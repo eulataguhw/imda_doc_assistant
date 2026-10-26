@@ -53,9 +53,16 @@ export class SessionsService {
   /** Most-recently-updated sessions first (WEB-M8-1: revisit past conversations). */
   list(): SessionDto[] {
     const rows = db
-      .prepare("SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC, rowid DESC")
+      .prepare(
+        "SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC, rowid DESC"
+      )
       .all() as unknown as SessionRow[];
-    return rows.map((r) => ({ id: r.id, title: r.title ?? "", createdAt: iso(r.created_at), updatedAt: iso(r.updated_at) }));
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title ?? "",
+      createdAt: iso(r.created_at),
+      updatedAt: iso(r.updated_at),
+    }));
   }
 
   create(title?: string): SessionDto {
@@ -65,7 +72,7 @@ export class SessionsService {
       id,
       title?.trim() || null,
       now,
-      now,
+      now
     );
     return { id, title: title?.trim() ?? "", createdAt: iso(now), updatedAt: iso(now) };
   }
@@ -77,7 +84,9 @@ export class SessionsService {
     if (!s) throw new NotFoundException(`Session ${id} not found`);
     // rowid is a stable insertion-order tiebreaker for same-millisecond messages.
     const rows = db
-      .prepare("SELECT id, role, content, citations, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC")
+      .prepare(
+        "SELECT id, role, content, citations, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC"
+      )
       .all(id) as unknown as MessageRow[];
     return {
       id: s.id,
@@ -95,16 +104,23 @@ export class SessionsService {
   }
 
   /** Append one message and bump the session's updated_at. */
-  appendMessage(sessionId: string, role: "user" | "assistant", content: string, citations?: Array<{ documentId: string; title?: string; page?: number }>): void {
+  appendMessage(
+    sessionId: string,
+    role: "user" | "assistant",
+    content: string,
+    citations?: Array<{ documentId: string; title?: string; page?: number }>
+  ): void {
     const id = randomUUID();
     const now = Date.now();
-    db.prepare("INSERT INTO messages (id, session_id, role, content, citations, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    db.prepare(
+      "INSERT INTO messages (id, session_id, role, content, citations, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
       id,
       sessionId,
       role,
       content,
       citations && citations.length > 0 ? JSON.stringify(citations) : null,
-      now,
+      now
     );
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(now, sessionId);
   }
@@ -112,11 +128,18 @@ export class SessionsService {
   /** Last-N messages for a session as chat context (oldest → newest). */
   recentMessages(sessionId: string): Array<{ role: "user" | "assistant"; content: string }> {
     const rows = db
-      .prepare("SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
+      .prepare(
+        "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?"
+      )
       .all(sessionId, RECENT_CAP) as unknown as Array<{ role: string; content: string }>;
     return rows
       .reverse()
-      .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim() !== "")
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" &&
+          m.content.trim() !== ""
+      )
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
   }
 }

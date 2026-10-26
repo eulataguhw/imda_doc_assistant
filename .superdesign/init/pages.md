@@ -75,6 +75,7 @@ export function LibraryPage() {
 ```
 
 Dependencies:
+
 - src/lib/api.ts
   - (no local imports — fetches `/api/documents`)
 - src/components/StatusBadge.tsx
@@ -158,6 +159,7 @@ export function DocumentDetailPage() {
 ```
 
 Dependencies:
+
 - src/lib/api.ts
   - (no local imports — fetches `/api/documents`)
 - src/components/StatusBadge.tsx
@@ -179,4 +181,5 @@ export function ChatPage() {
 ```
 
 Dependencies:
+
 - (none — stub; M4 adds SSE streaming client, message list, citation chips, scoped input)

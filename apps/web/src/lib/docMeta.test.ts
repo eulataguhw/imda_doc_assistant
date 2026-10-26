@@ -15,7 +15,7 @@ describe("getDocDisplayMeta", () => {
         pages: 12,
         sizeBytes: 2048,
         createdAt: "2026-06-05T00:00:00.000Z",
-      }),
+      })
     );
     expect(meta.excerpt).toBe("Q2 results were strong.");
     expect(meta.pages).toBe(12);
@@ -26,7 +26,7 @@ describe("getDocDisplayMeta", () => {
   it("falls back to a default excerpt when no summary exists", () => {
     const meta = getDocDisplayMeta(doc({}));
     expect(meta.excerpt).toBe(
-      "No summary is available for this document yet. Use chat to ask questions about its contents.",
+      "No summary is available for this document yet. Use chat to ask questions about its contents."
     );
     expect(meta.pages).toBeNull();
     expect(meta.sizeLabel).toBeNull();
@@ -40,7 +40,7 @@ describe("getDocDisplayMeta", () => {
   it("surfaces the ingestion error reason when present", () => {
     const meta = getDocDisplayMeta(doc({ status: "error", errorReason: "corrupt file" }));
     expect(meta.excerpt).toBe(
-      "Ingestion failed: corrupt file. You can retry the upload from the library.",
+      "Ingestion failed: corrupt file. You can retry the upload from the library."
     );
   });
 

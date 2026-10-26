@@ -16,7 +16,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS documents (
 );`);
 
 // M4 migration: add error_reason for databases created before it. Guarded + idempotent.
-const columns = db.prepare("PRAGMA table_info(documents)").all() as unknown as Array<{ name: string }>;
+const columns = db.prepare("PRAGMA table_info(documents)").all() as unknown as Array<{
+  name: string;
+}>;
 if (!columns.some((c) => c.name === "error_reason")) {
   db.exec("ALTER TABLE documents ADD COLUMN error_reason TEXT");
 }

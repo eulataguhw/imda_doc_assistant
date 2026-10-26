@@ -20,10 +20,16 @@ import {
   streamChat,
   uploadChatDocument,
 } from "../../lib/api";
-import { DOC_ORIGIN } from "../../lib/constants";
+import { useSessionsStore } from "../../lib/stores/sessions";
+import { useDocumentsStore } from "../../lib/stores/documents";
 import { Toaster, useToastStore } from "../../components/Toaster/Toaster";
 
-type StreamParams = { question: string; documentIds?: string[]; attachments?: string[]; sessionId?: string };
+type StreamParams = {
+  question: string;
+  documentIds?: string[];
+  attachments?: string[];
+  sessionId?: string;
+};
 const lastStream = (): StreamParams => {
   const calls = (streamChat as unknown as ReturnType<typeof vi.fn>).mock.calls;
   return calls[calls.length - 1][0] as StreamParams;
@@ -34,7 +40,7 @@ function renderPage() {
     <MemoryRouter>
       <ChatPage />
       <Toaster />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -42,14 +48,26 @@ describe("ChatPage (M8)", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     useToastStore.setState({ toasts: [] });
+    // Reset the global stores so each test starts from a clean conversation + library.
+    useSessionsStore.setState({ sessions: [], loaded: false, activeId: null, messages: [] });
+    useDocumentsStore.setState({ documents: [], loaded: false, error: null });
     (listDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (listSessions as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (createSession as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "s1", title: "", createdAt: "", updatedAt: "" });
-    (uploadChatDocument as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "a1", title: "Brief", status: "ready" });
+    (createSession as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "s1",
+      title: "",
+      createdAt: "",
+      updatedAt: "",
+    });
+    (uploadChatDocument as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "a1",
+      title: "Brief",
+      status: "ready",
+    });
     (streamChat as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       async (params: { onEvent?: (e: unknown) => void }) => {
         params.onEvent?.({ type: "chunk", data: { delta: "Hello from the model" } });
-      },
+      }
     );
   });
 
@@ -59,7 +77,8 @@ describe("ChatPage (M8)", () => {
     expect(screen.getByRole("button", { name: /Summarize key risks/ })).toBeTruthy();
     expect(screen.getByRole("textbox")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Attach a PDF or DOCX" })).toBeTruthy();
-    expect(listDocuments).toHaveBeenCalledWith(DOC_ORIGIN.knowledge);
+    // The store fetches the full library once; origin filtering is client-side.
+    expect(listDocuments).toHaveBeenCalled();
     expect(listSessions).toHaveBeenCalled();
   });
 
@@ -166,7 +185,9 @@ describe("ChatPage (M8)", () => {
     const { container } = renderPage();
     await screen.findByText("How can I help you today?");
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [new File(["x"], "brief.pdf", { type: "application/pdf" })] } });
+    fireEvent.change(input, {
+      target: { files: [new File(["x"], "brief.pdf", { type: "application/pdf" })] },
+    });
     expect(await screen.findByText("Brief")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Remove Brief" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove Brief" }));
@@ -177,13 +198,17 @@ describe("ChatPage (M8)", () => {
     const { container } = renderPage();
     await screen.findByText("How can I help you today?");
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] } });
+    fireEvent.change(input, {
+      target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] },
+    });
     await waitFor(() => expect(uploadChatDocument).not.toHaveBeenCalled());
     expect(await screen.findByText(/Only PDF and DOCX files can be attached/)).toBeTruthy();
   });
 
   it("surfaces a stream failure when the chat request rejects", async () => {
-    (streamChat as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("model offline"));
+    (streamChat as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("model offline")
+    );
     renderPage();
     const ta = screen.getByRole("textbox");
     fireEvent.change(ta, { target: { value: "Hi?" } });
@@ -192,7 +217,9 @@ describe("ChatPage (M8)", () => {
   });
 
   it("leaves the in-flight message untouched when the stream is aborted", async () => {
-    (streamChat as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+    (streamChat as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new DOMException("Aborted", "AbortError")
+    );
     renderPage();
     const ta = screen.getByRole("textbox");
     fireEvent.change(ta, { target: { value: "Hi?" } });

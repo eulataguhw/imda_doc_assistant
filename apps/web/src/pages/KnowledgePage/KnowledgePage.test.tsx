@@ -11,7 +11,7 @@ vi.mock("../../lib/api", () => ({
 import { KnowledgePage } from "./KnowledgePage";
 import { Toaster, useToastStore } from "../../components/Toaster/Toaster";
 import { listDocuments, deleteDocument, uploadDocumentFile } from "../../lib/api";
-import { DOC_ORIGIN } from "../../lib/constants";
+import { useDocumentsStore } from "../../lib/stores/documents";
 
 const KNOWLEDGE_DOCS = [
   { id: "k1", title: "Annual Report", status: "ready", origin: "knowledge" },
@@ -24,7 +24,7 @@ function renderPage() {
     <MemoryRouter>
       <KnowledgePage />
       <Toaster />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -34,6 +34,7 @@ describe("KnowledgePage (M8 / WEB-M8-8)", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     useToastStore.setState({ toasts: [] });
+    useDocumentsStore.setState({ documents: [], loaded: false, error: null });
     asFn(listDocuments).mockResolvedValue(KNOWLEDGE_DOCS);
     asFn(deleteDocument).mockResolvedValue(undefined);
     asFn(uploadDocumentFile).mockResolvedValue({});
@@ -43,14 +44,19 @@ describe("KnowledgePage (M8 / WEB-M8-8)", () => {
     renderPage();
     expect(await screen.findByText("Annual Report")).toBeTruthy();
     expect(screen.getByText("HR Policy")).toBeTruthy();
-    expect(listDocuments).toHaveBeenCalledWith(DOC_ORIGIN.knowledge);
-    expect(screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ })).toBeTruthy();
+    // The store fetches the full library once; origin filtering is client-side.
+    expect(listDocuments).toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ })
+    ).toBeTruthy();
   });
 
   it("deletes a document on click and reloads the list", async () => {
     renderPage();
     await screen.findByText("Annual Report");
-    fireEvent.click(screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ })
+    );
     await waitFor(() => expect(deleteDocument).toHaveBeenCalledWith("k1"));
   });
 
@@ -78,7 +84,9 @@ describe("KnowledgePage (M8 / WEB-M8-8)", () => {
     asFn(deleteDocument).mockRejectedValue(new Error("500"));
     renderPage();
     await screen.findByText("Annual Report");
-    fireEvent.click(screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete knowledge document: Annual Report/ })
+    );
     expect(await screen.findByText(/Delete failed/)).toBeTruthy();
   });
 

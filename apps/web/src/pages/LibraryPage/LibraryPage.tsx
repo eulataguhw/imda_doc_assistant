@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { FileText, MessageSquarePlus, Trash2 } from "lucide-react";
-import { deleteDocument, listDocuments, type Document } from "../../lib/api";
+import { deleteDocument, type Document } from "../../lib/api";
 import { getDocDisplayMeta } from "../../lib/docMeta";
 import { DOC_ORIGIN, ROUTE_CHAT, documentRoute } from "../../lib/constants";
 import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 import { toast } from "../../components/Toaster/Toaster";
+import { useDocuments } from "../../hooks/useDocuments";
 
 /**
  * Card for a chat-origin document (M8 WEB-M8-9). These are files the user
@@ -88,7 +89,10 @@ function SkeletonRows() {
           className="flex items-center gap-3 rounded-xl border bg-white/50 p-4 dark:bg-black/5"
           style={{ borderColor: "var(--muted)" }}
         >
-          <div className="size-10 shrink-0 rounded-lg" style={{ backgroundColor: "var(--muted)" }} />
+          <div
+            className="size-10 shrink-0 rounded-lg"
+            style={{ backgroundColor: "var(--muted)" }}
+          />
           <div className="flex-1 space-y-2">
             <div className="h-3 w-1/3 rounded" style={{ backgroundColor: "var(--muted)" }} />
             <div className="h-3 w-1/2 rounded" style={{ backgroundColor: "var(--muted)" }} />
@@ -106,20 +110,12 @@ function SkeletonRows() {
  * supported per document.
  */
 export function LibraryPage() {
-  const [docs, setDocs] = useState<Document[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    setError(null);
-    return listDocuments(DOC_ORIGIN.chat)
-      .then(setDocs)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  };
+  /* Shared library store (chat origin) — single source of truth across pages. */
+  const { documents: docs, loaded, error, refresh } = useDocuments(DOC_ORIGIN.chat);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   return (
     <main className="flex-1 w-full">
@@ -127,7 +123,8 @@ export function LibraryPage() {
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            Documents you've uploaded in chat. They attach to your conversations and are cited inline.
+            Documents you've uploaded in chat. They attach to your conversations and are cited
+            inline.
           </p>
         </header>
 
@@ -140,7 +137,7 @@ export function LibraryPage() {
             <p>Failed to load library documents: {error}</p>
             <button
               type="button"
-              onClick={load}
+              onClick={refresh}
               className="shrink-0 rounded-md px-3 py-1.5 font-medium"
               style={{ backgroundColor: "var(--error)", color: "var(--badge-solid-text)" }}
             >
@@ -149,14 +146,14 @@ export function LibraryPage() {
           </div>
         )}
 
-        {docs === null && !error && (
+        {!loaded && !error && (
           <>
             <span className="sr-only">Loading library documents…</span>
             <SkeletonRows />
           </>
         )}
 
-        {docs !== null && docs.length === 0 && (
+        {loaded && docs.length === 0 && (
           <div
             className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center"
             style={{ borderColor: "var(--muted)" }}
@@ -165,16 +162,20 @@ export function LibraryPage() {
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
               No documents uploaded in chat yet.
             </p>
-            <Link to={ROUTE_CHAT} className="text-sm font-medium hover:underline" style={{ color: "var(--accent)" }}>
+            <Link
+              to={ROUTE_CHAT}
+              className="text-sm font-medium hover:underline"
+              style={{ color: "var(--accent)" }}
+            >
               Open a conversation and drag & drop a PDF or DOCX into the composer →
             </Link>
           </div>
         )}
 
-        {docs !== null && docs.length > 0 && (
+        {loaded && docs.length > 0 && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {docs.map((doc) => (
-              <Card key={doc.id} doc={doc} onDeleted={load} />
+              <Card key={doc.id} doc={doc} onDeleted={refresh} />
             ))}
           </div>
         )}

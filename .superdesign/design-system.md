@@ -18,15 +18,15 @@ A hard constraint for every Superdesign generation. Explore layout, structure, h
 
 ### Color (oklch, semantic — use ONLY these)
 
-| Role | Light (`:root`) | Dark (`.dark`) |
-| --- | --- | --- |
-| Background (warm off-white / deep indigo-black) | `oklch(0.985 0.004 90)` | `oklch(0.19 0.008 280)` |
-| Foreground (primary text) | `oklch(0.21 0.01 70)` | `oklch(0.93 0.005 80)` |
-| Muted (borders, dividers, loading text, fallback badge bg) | `oklch(0.94 0.006 80)` | `oklch(0.26 0.008 280)` |
-| Accent (indigo — back links, active hints, interactive emphasis) | `oklch(0.62 0.21 275)` | `oklch(0.72 0.18 280)` |
-| Ready (green status) | `oklch(0.62 0.15 155)` | `oklch(0.74 0.14 155)` |
-| Processing (amber status) | `oklch(0.72 0.14 80)` | `oklch(0.80 0.13 80)` |
-| Error (red status + error text) | `oklch(0.60 0.19 25)` | `oklch(0.71 0.16 25)` |
+| Role                                                             | Light (`:root`)         | Dark (`.dark`)          |
+| ---------------------------------------------------------------- | ----------------------- | ----------------------- |
+| Background (warm off-white / deep indigo-black)                  | `oklch(0.985 0.004 90)` | `oklch(0.19 0.008 280)` |
+| Foreground (primary text)                                        | `oklch(0.21 0.01 70)`   | `oklch(0.93 0.005 80)`  |
+| Muted (borders, dividers, loading text, fallback badge bg)       | `oklch(0.94 0.006 80)`  | `oklch(0.26 0.008 280)` |
+| Accent (indigo — back links, active hints, interactive emphasis) | `oklch(0.62 0.21 275)`  | `oklch(0.72 0.18 280)`  |
+| Ready (green status)                                             | `oklch(0.62 0.15 155)`  | `oklch(0.74 0.14 155)`  |
+| Processing (amber status)                                        | `oklch(0.72 0.14 80)`   | `oklch(0.80 0.13 80)`   |
+| Error (red status + error text)                                  | `oklch(0.60 0.19 25)`   | `oklch(0.71 0.16 25)`   |
 
 The accent is **indigo**. Status colors are semantic: green = ready, amber = processing, red = error. Do not add new hues (no pink, neon, or purple gradients). Surfaces use the background/muted tokens; text uses foreground; interactive emphasis and links use the indigo accent.
 

@@ -64,7 +64,9 @@ describe("SessionsService (M8 / API-M8-2,3)", () => {
   it("stores citations as null for user messages (absent on read)", () => {
     const s = svc.create("D");
     svc.appendMessage(s.id, "user", "no cites");
-    const raw = db.prepare("SELECT citations FROM messages WHERE session_id = ?").get(s.id) as unknown as { citations: string | null };
+    const raw = db
+      .prepare("SELECT citations FROM messages WHERE session_id = ?")
+      .get(s.id) as unknown as { citations: string | null };
     expect(raw.citations).toBeNull();
     expect(svc.get(s.id).messages[0].citations).toBeUndefined();
   });
@@ -76,7 +78,7 @@ describe("SessionsService (M8 / API-M8-2,3)", () => {
   it("bumps updated_at on append so an older session can move to the front", () => {
     withClock(() => {
       const a = svc.create("A");
-      const b = svc.create("B");
+      const _b = svc.create("B");
       svc.appendMessage(a.id, "user", "reactivate A");
       expect(svc.list()[0].id).toBe(a.id);
     });
@@ -89,6 +91,13 @@ describe("SessionsService (M8 / API-M8-2,3)", () => {
     expect(recent.length).toBe(6); // RECENT_CAP
     expect(recent[0].content).toBe("m3");
     expect(recent[5].content).toBe("m8");
-    expect(recent.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant", "user", "assistant"]);
+    expect(recent.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+    ]);
   });
 });

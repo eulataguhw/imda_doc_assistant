@@ -16,7 +16,10 @@ export function StatusBadge({ status, variant = "solid", className }: StatusBadg
           borderColor: `color-mix(in oklab, var(${token}) 30%, transparent)`,
         }}
       >
-        <span className="mr-1.5 size-1.5 rounded-full" style={{ backgroundColor: `var(${token})` }} />
+        <span
+          className="mr-1.5 size-1.5 rounded-full"
+          style={{ backgroundColor: `var(${token})` }}
+        />
         {LABEL[status]}
       </span>
     );
@@ -24,7 +27,10 @@ export function StatusBadge({ status, variant = "solid", className }: StatusBadg
 
   /** solid text uses --badge-solid-text (white in light, near-black in dark) to keep AA in both themes. */
   return (
-    <span className={base} style={{ backgroundColor: `var(${token})`, color: "var(--badge-solid-text)" }}>
+    <span
+      className={base}
+      style={{ backgroundColor: `var(${token})`, color: "var(--badge-solid-text)" }}
+    >
       {LABEL[status]}
     </span>
   );

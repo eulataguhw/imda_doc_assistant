@@ -5,16 +5,25 @@ import path from "node:path";
 const SAMPLE = path.resolve(__dirname, "fixtures/sample.pdf");
 
 test.describe("Knowledge — RAG documents (upload dropzone present)", () => {
-  test("lists a knowledge doc, exposes an upload input, and can delete the doc", async ({ page, request }) => {
+  test("lists a knowledge doc, exposes an upload input, and can delete the doc", async ({
+    page,
+    request,
+  }) => {
     // Create a knowledge-origin document via the RAG upload endpoint.
     const form = new FormData();
-    form.append("file", new Blob([readFileSync(SAMPLE)], { type: "application/pdf" }), "m8-know.pdf");
+    form.append(
+      "file",
+      new Blob([readFileSync(SAMPLE)], { type: "application/pdf" }),
+      "m8-know.pdf"
+    );
     const res = await request.post("/api/documents/upload", { multipart: form });
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as { id: string; title: string; origin: string };
     expect(body.origin).toBe("knowledge");
 
-    const deleteBtn = page.getByRole("button", { name: `Delete knowledge document: ${body.title}` });
+    const deleteBtn = page.getByRole("button", {
+      name: `Delete knowledge document: ${body.title}`,
+    });
 
     await page.goto("/knowledge");
 

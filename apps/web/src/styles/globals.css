@@ -7,7 +7,7 @@
   --accent: oklch(0.62 0.21 275);
   --ready: oklch(0.62 0.15 155);
   --processing: oklch(0.72 0.14 80);
-  --error: oklch(0.60 0.19 25);
+  --error: oklch(0.6 0.19 25);
   --text-secondary: oklch(0.45 0.01 70);
   --badge-solid-text: #ffffff;
   --focus-ring: var(--accent);
@@ -18,10 +18,10 @@ html.dark {
   --muted: oklch(0.26 0.008 280);
   --accent: oklch(0.78 0.16 280);
   --ready: oklch(0.74 0.14 155);
-  --processing: oklch(0.80 0.13 80);
+  --processing: oklch(0.8 0.13 80);
   --error: oklch(0.71 0.16 25);
-  --text-secondary: oklch(0.80 0.01 80);
-  --badge-solid-text: oklch(0.20 0.01 280);
+  --text-secondary: oklch(0.8 0.01 80);
+  --badge-solid-text: oklch(0.2 0.01 280);
   --focus-ring: var(--accent);
 }
 
@@ -37,6 +37,43 @@ html.dark {
     opacity: 1;
     transform: translateY(-4px);
   }
+}
+
+/* Live streaming cursor: a blinking caret shown while an assistant answer is still arriving (WEB-6). */
+@keyframes sd-cursor-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+}
+.sd-stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background-color: var(--accent);
+  border-radius: 1px;
+  animation: sd-cursor-blink 1s steps(1, end) infinite;
+}
+
+/* New messages fade + rise in on mount (runs once per message element, keyed by id). */
+@keyframes sd-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.sd-msg-enter {
+  animation: sd-msg-in 220ms ease-out both;
 }
 
 /* Thin, token-colored scrollbar for the document content preview. */
@@ -58,11 +95,40 @@ html.dark {
   outline-offset: 2px;
 }
 
-/* Respect reduced-motion: freeze the streaming typing dots (M7 / WEB-M7-6). */
+/* Skip link (WCAG 2.4.1): off-screen until focused, then slides into view at the top. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -100vh;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  transition: top 120ms ease-out;
+}
+.skip-link:focus {
+  top: 0.5rem;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Respect reduced-motion: freeze streaming typing dots, the live cursor, and message entrance (M7 / WEB-6). */
 @media (prefers-reduced-motion: reduce) {
   .sd-typing-dot {
     animation: none !important;
     opacity: 1 !important;
+  }
+  .sd-stream-cursor {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .sd-msg-enter {
+    animation: none !important;
+  }
+  .skip-link {
+    transition: none !important;
   }
 }
 

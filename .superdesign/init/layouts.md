@@ -19,13 +19,26 @@ export default function App() {
   const { resolvedTheme, setTheme } = useTheme();
   return (
     <div className="min-h-screen">
-      <header className="flex h-12 items-center justify-between border-b px-4" style={{ borderColor: "var(--muted)" }}>
+      <header
+        className="flex h-12 items-center justify-between border-b px-4"
+        style={{ borderColor: "var(--muted)" }}
+      >
         <nav className="flex items-center gap-4">
           <span className="font-semibold tracking-tight">DocAssist</span>
-          <NavLink to="/library" className={({ isActive }) => `flex items-center rounded-md px-3 py-1.5 text-sm transition-opacity ${isActive ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+          <NavLink
+            to="/library"
+            className={({ isActive }) =>
+              `flex items-center rounded-md px-3 py-1.5 text-sm transition-opacity ${isActive ? "opacity-100" : "opacity-60 hover:opacity-100"}`
+            }
+          >
             Library
           </NavLink>
-          <NavLink to="/chat" className={({ isActive }) => `flex items-center rounded-md px-3 py-1.5 text-sm transition-opacity ${isActive ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+          <NavLink
+            to="/chat"
+            className={({ isActive }) =>
+              `flex items-center rounded-md px-3 py-1.5 text-sm transition-opacity ${isActive ? "opacity-100" : "opacity-60 hover:opacity-100"}`
+            }
+          >
             Chat
           </NavLink>
         </nav>
@@ -70,6 +83,6 @@ createRoot(document.getElementById("root")!).render(
         <App />
       </BrowserRouter>
     </ThemeProvider>
-  </StrictMode>,
+  </StrictMode>
 );
 ```

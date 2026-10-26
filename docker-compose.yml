@@ -1,0 +1,91 @@
+# Doc Assistant — full local stack (LLM + vector store + API + web).
+#   docker compose up --build
+# Ports: ollama :11434, qdrant :6333, api :3001, web :8080
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # One-shot: ensure the embedding model is present before the API starts.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["shell", "-c", "ollama pull nomic-embed-text || true"]
+    restart: "no"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      DATABASE_PATH: /data/doc-assistant.db
+      # LLM endpoint = Ollama (OpenAI-compatible API). Chat model must be pulled
+      # locally (ollama pull <LLM_MODEL>) or point LLM_BASE_URL at another provider.
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_MODEL: qwen2.5:7b-instruct-q4_K_M
+      EMBED_MODEL: nomic-embed-text
+      # LLM_API_KEY: sk-...   # only for cloud providers; Ollama ignores it
+      LLM_TEMPERATURE: "0.2"
+      LLM_MAX_TOKENS: "1024"
+      QDRANT_BASE_URL: http://qdrant:6333
+      MAX_UPLOAD_MB: "10"
+    volumes:
+      - ./data:/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3001/api/health || wget -qO- http://localhost:3001/ || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

@@ -10,6 +10,17 @@
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "playwright test",
     "dev:api": "npm run start -w doc-api",
-    "dev:web": "npm run dev -w doc-web"
+    "dev:web": "npm run dev -w doc-web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.72.0"
   }
 }

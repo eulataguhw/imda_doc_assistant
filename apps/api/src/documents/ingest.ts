@@ -6,7 +6,10 @@ const MAX_CHUNK = 1000;
 
 // PONYTAIL: paragraph-boundary chunking without sentence tracking; ceiling: ~50KB total text per upload in this synchronous pipeline; upgrade: job queue + finer tokenizer; trigger: uploads >1MB or concurrent ingest load.
 export function chunkText(text: string): string[] {
-  const paragraphs = text.split("\n\n").map((p) => p.trim()).filter((p) => p.length > 0);
+  const paragraphs = text
+    .split("\n\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
   const chunks: string[] = [];
   let current = "";
   const flush = () => {
@@ -35,7 +38,7 @@ export async function call(label: string, url: string, init?: RequestInit): Prom
   try {
     return await fetch(url, init);
   } catch (e) {
-    throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
   }
 }
 
@@ -57,7 +60,7 @@ async function embedBatch(chunks: string[]): Promise<number[][]> {
 
 export async function embedChunks(
   chunks: string[],
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number) => void
 ): Promise<number[][]> {
   // M4 path unchanged: single request, no progress reporting.
   if (!onProgress) return embedBatch(chunks);
@@ -76,7 +79,11 @@ export async function embedChunks(
  * with an advancing cursor recovers each chunk's offset; the last page start ≤ that
  * offset is the chunk's page (multi-page chunks cite their first page). DOCX → all null.
  */
-export function chunkPages(text: string, chunks: string[], pageStarts?: number[]): Array<number | null> {
+export function chunkPages(
+  text: string,
+  chunks: string[],
+  pageStarts?: number[]
+): Array<number | null> {
   if (!pageStarts) return chunks.map(() => null);
   let pos = 0;
   const pageAt = (offset: number): number | null => {
@@ -102,7 +109,11 @@ export async function generateSummary(text: string): Promise<string> {
   const body: Record<string, unknown> = {
     model: config.llmModel,
     messages: [
-      { role: "system", content: "Write a factual executive summary of the provided document in 2-4 sentences. Do not invent details that are not present." },
+      {
+        role: "system",
+        content:
+          "Write a factual executive summary of the provided document in 2-4 sentences. Do not invent details that are not present.",
+      },
       { role: "user", content: text.slice(0, 8000) },
     ],
     temperature: config.llmTemperature,
@@ -131,7 +142,7 @@ export async function upsertPoints(
   title: string,
   chunks: string[],
   embeddings: number[][],
-  pages?: Array<number | null>,
+  pages?: Array<number | null>
 ): Promise<void> {
   const base = config.qdrantBaseUrl;
   const existing = await call("Qdrant collection lookup failed", `${base}/collections/documents`);
@@ -152,7 +163,13 @@ export async function upsertPoints(
     id: randomUUID(),
     vector: embeddings[i],
     // `page` only when known (PDF); bare payload key so Qdrant filters can match it.
-    payload: { document_id: documentId, title, chunk_index: i, text, ...(pages?.[i] != null ? { page: pages[i] } : {}) },
+    payload: {
+      document_id: documentId,
+      title,
+      chunk_index: i,
+      text,
+      ...(pages?.[i] != null ? { page: pages[i] } : {}),
+    },
   }));
   // Qdrant >=1.7 upserts via PUT /collections/{name}/points (POST .../points/upsert is gone).
   const res = await call("Qdrant upsert failed", `${base}/collections/documents/points`, {
@@ -167,11 +184,17 @@ export async function upsertPoints(
 
 /** M8 (API-M8-6): remove all Qdrant points for a document. No-op when the doc had no points. */
 export async function deletePoints(documentId: string): Promise<void> {
-  const res = await call("Qdrant delete failed", `${config.qdrantBaseUrl}/collections/documents/points/delete`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ filter: { must: [{ key: "document_id", match: { value: documentId } }] } }),
-  });
+  const res = await call(
+    "Qdrant delete failed",
+    `${config.qdrantBaseUrl}/collections/documents/points/delete`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        filter: { must: [{ key: "document_id", match: { value: documentId } }] },
+      }),
+    }
+  );
   if (!res.ok) {
     throw new Error(`Qdrant delete failed: ${res.status} ${res.statusText}`);
   }

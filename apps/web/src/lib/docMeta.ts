@@ -38,7 +38,8 @@ export function getDocDisplayMeta(doc: Document): DocDisplayMeta {
         : "Ingestion failed for this document. Check the API logs for the specific reason, or retry the upload from the library."
       : doc.status === "processing"
         ? "We're still indexing this document. Once it's ready you'll be able to ask questions about its contents and cite exact pages from here."
-        : doc.summary || "No summary is available for this document yet. Use chat to ask questions about its contents.";
+        : doc.summary ||
+          "No summary is available for this document yet. Use chat to ask questions about its contents.";
 
   return {
     pages: typeof doc.pages === "number" ? doc.pages : null,

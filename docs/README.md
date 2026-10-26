@@ -1,11 +1,11 @@
 # Doc Assistant — Docs Index
 
-| Document | Purpose |
-| --- | --- |
-| [project-context.md](project-context.md) | What this app is: goals, constraints, verified stack |
-| [engineering-standards.md](engineering-standards.md) | Coding and API/SPA conventions for this application |
-| [development-plan.md](development-plan.md) | Master milestone plan M1–M6 with exit criteria and status |
-| [context/working-memory.md](context/working-memory.md) | Living state: decisions, assumptions, next actions |
+| Document                                               | Purpose                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| [project-context.md](project-context.md)               | What this app is: goals, constraints, verified stack      |
+| [engineering-standards.md](engineering-standards.md)   | Coding and API/SPA conventions for this application       |
+| [development-plan.md](development-plan.md)             | Master milestone plan M1–M6 with exit criteria and status |
+| [context/working-memory.md](context/working-memory.md) | Living state: decisions, assumptions, next actions        |
 
 ## Spec roots (mirror each app's `src/`)
 

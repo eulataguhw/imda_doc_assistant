@@ -11,7 +11,10 @@ function renderWithRouter(ui: ReactElement) {
 describe("Markdown (M8 / WEB-M8-3)", () => {
   it("renders an [n] citation as a chip linking to /documents/:id with title + page", () => {
     renderWithRouter(
-      <Markdown text="Revenue grew 20% [1]." citations={[{ doc: "d1", title: "Annual Report", page: 3 }]} />,
+      <Markdown
+        text="Revenue grew 20% [1]."
+        citations={[{ doc: "d1", title: "Annual Report", page: 3 }]}
+      />
     );
     const chip = screen.getByRole("link", { name: /Annual Report/ });
     expect(chip.getAttribute("href")).toBe("/documents/d1");

@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import { db } from "../lib/db";
 import { config } from "../lib/env";
-import { extractText, ExtractResult, NoExtractableTextError, UnsupportedFileTypeError } from "./extract";
+import {
+  extractText,
+  ExtractResult,
+  NoExtractableTextError,
+  UnsupportedFileTypeError,
+} from "./extract";
 import { chunkText, deletePoints, embedChunks, upsertPoints } from "./ingest";
 import { enqueue, JobProgress, markStaleProcessing, progress } from "./queue";
 
@@ -38,7 +43,8 @@ interface DocumentRow {
   created_at: string;
 }
 
-const ROW_SQL = "SELECT id, title, status, origin, error_reason, summary, pages, size_bytes, created_at FROM documents";
+const ROW_SQL =
+  "SELECT id, title, status, origin, error_reason, summary, pages, size_bytes, created_at FROM documents";
 
 function toDto(r: DocumentRow): DocumentDto {
   return {
@@ -68,13 +74,16 @@ export class DocumentsService implements OnModuleInit {
     // M8 (API-DOC-5): optional origin filter — the WHERE clause must precede ORDER BY.
     const where = origin ? " WHERE origin = ?" : "";
     const sql = `${ROW_SQL}${where} ORDER BY created_at DESC`;
-    const rows = (origin ? db.prepare(sql).all(origin) : db.prepare(sql).all()) as unknown as DocumentRow[];
+    const rows = (origin
+      ? db.prepare(sql).all(origin)
+      : db.prepare(sql).all()) as unknown as DocumentRow[];
     return rows.map(toDto);
   }
 
   /** M8 (API-M8-6): remove a document row + its Qdrant points (knowledge docs only; chat docs are not embedded). */
   async delete(id: string): Promise<void> {
-    const row = db.prepare("SELECT origin FROM documents WHERE id = ?").get(id) as unknown as { origin?: string } | undefined;
+    const row = db.prepare("SELECT origin FROM documents WHERE id = ?").get(id) as unknown as
+      { origin?: string } | undefined;
     if (!row) throw new NotFoundException(`Document ${id} not found`);
     if (row.origin !== "chat") await deletePoints(id);
     db.prepare("DELETE FROM documents WHERE id = ?").run(id);
@@ -109,7 +118,7 @@ export class DocumentsService implements OnModuleInit {
     const id = randomUUID();
     const docTitle = (title ?? "").trim() || filename.replace(/\.[^.]+$/, "");
     db.prepare(
-      "INSERT INTO documents (id, title, status, origin, content, pages, size_bytes) VALUES (?, ?, 'ready', 'chat', ?, ?, ?)",
+      "INSERT INTO documents (id, title, status, origin, content, pages, size_bytes) VALUES (?, ?, 'ready', 'chat', ?, ?, ?)"
     ).run(id, docTitle, extracted.text, extracted.pages, buffer.length);
     const row = db.prepare(`${ROW_SQL} WHERE id = ?`).get(id) as unknown as DocumentRow;
     return toDto(row);
@@ -118,9 +127,12 @@ export class DocumentsService implements OnModuleInit {
   /** M4 synchronous in-request lifecycle (JSON text path): processing → ready | error. */
   async upload(title: string, content: string): Promise<DocumentDto> {
     const id = randomUUID();
-    db.prepare("INSERT INTO documents (id, title, status) VALUES (?, ?, 'processing')").run(id, title);
+    db.prepare("INSERT INTO documents (id, title, status) VALUES (?, ?, 'processing')").run(
+      id,
+      title
+    );
 
-    let status: DocumentDto["status"] = "processing";
+    let status: DocumentDto["status"];
     let errorReason: string | null = null;
     try {
       const chunks = chunkText(content);
@@ -133,7 +145,11 @@ export class DocumentsService implements OnModuleInit {
       errorReason = e instanceof Error ? e.message : String(e);
     }
 
-    db.prepare("UPDATE documents SET status = ?, error_reason = ? WHERE id = ?").run(status, errorReason, id);
+    db.prepare("UPDATE documents SET status = ?, error_reason = ? WHERE id = ?").run(
+      status,
+      errorReason,
+      id
+    );
     const row = db.prepare(`${ROW_SQL} WHERE id = ?`).get(id) as unknown as DocumentRow;
     return toDto(row);
   }
@@ -167,13 +183,15 @@ export class DocumentsService implements OnModuleInit {
     const id = randomUUID();
     const docTitle = (title ?? "").trim() || filename.replace(/\.[^.]+$/, "");
     // M6 (API-M6-6): real size + page count stored at upload time.
-    db.prepare("INSERT INTO documents (id, title, status, pages, size_bytes) VALUES (?, ?, 'processing', ?, ?)").run(
-      id,
-      docTitle,
-      extracted.pages,
-      buffer.length,
-    );
-    enqueue({ documentId: id, title: docTitle, text: extracted.text, pageStarts: extracted.pageStarts });
+    db.prepare(
+      "INSERT INTO documents (id, title, status, pages, size_bytes) VALUES (?, ?, 'processing', ?, ?)"
+    ).run(id, docTitle, extracted.pages, buffer.length);
+    enqueue({
+      documentId: id,
+      title: docTitle,
+      text: extracted.text,
+      pageStarts: extracted.pageStarts,
+    });
     const row = db.prepare(`${ROW_SQL} WHERE id = ?`).get(id) as unknown as DocumentRow;
     return toDto(row);
   }

@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ArrowRight, FileText, FileWarning, Trash2, Upload } from "lucide-react";
-import { deleteDocument, listDocuments, uploadDocumentFile, type Document } from "../../lib/api";
+import { deleteDocument, uploadDocumentFile, type Document } from "../../lib/api";
 import { getDocDisplayMeta } from "../../lib/docMeta";
-import { ACCEPT_ATTR, DOC_ORIGIN, ROUTE_CHAT, documentRoute, isAcceptedFile } from "../../lib/constants";
+import {
+  ACCEPT_ATTR,
+  DOC_ORIGIN,
+  ROUTE_CHAT,
+  documentRoute,
+  isAcceptedFile,
+} from "../../lib/constants";
 import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 import { toast } from "../../components/Toaster/Toaster";
+import { useDocuments } from "../../hooks/useDocuments";
 import { MAX_UPLOAD_MB, SECTION_ORDER, UPLOAD_CONCURRENCY } from "./constants";
 
 /** Reject a candidate upload before it hits the network; returns a reason string or null when acceptable. */
@@ -99,7 +106,10 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
         </p>
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: "var(--muted)" }}>
+      <div
+        className="mt-auto flex items-center justify-between border-t pt-4"
+        style={{ borderColor: "var(--muted)" }}
+      >
         {doc.status === "ready" ? (
           <Link
             to={`${ROUTE_CHAT}?docId=${encodeURIComponent(doc.id)}`}
@@ -128,7 +138,15 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
 }
 
 /** Renders a single status group; returns null when it has no documents. */
-function Section({ label, docs, onDeleted }: { label: string; docs: Document[]; onDeleted: () => void }) {
+function Section({
+  label,
+  docs,
+  onDeleted,
+}: {
+  label: string;
+  docs: Document[];
+  onDeleted: () => void;
+}) {
   if (docs.length === 0) return null;
   return (
     <section className="space-y-4">
@@ -193,7 +211,10 @@ function Dropzone({ onUploaded }: { onUploaded: () => void }) {
   const busy = upload !== null;
 
   return (
-    <div className="mb-10 flex flex-col gap-3 rounded-xl border bg-white/50 p-5 dark:bg-black/5" style={{ borderColor: "var(--muted)" }}>
+    <div
+      className="mb-10 flex flex-col gap-3 rounded-xl border bg-white/50 p-5 dark:bg-black/5"
+      style={{ borderColor: "var(--muted)" }}
+    >
       <div>
         <h2
           className="text-xs font-semibold uppercase tracking-wider"
@@ -223,11 +244,16 @@ function Dropzone({ onUploaded }: { onUploaded: () => void }) {
         className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         style={{
           borderColor: dragOver ? "var(--accent)" : "var(--muted)",
-          backgroundColor: dragOver ? "color-mix(in oklab, var(--accent) 8%, transparent)" : undefined,
+          backgroundColor: dragOver
+            ? "color-mix(in oklab, var(--accent) 8%, transparent)"
+            : undefined,
           color: "var(--foreground)",
         }}
       >
-        <Upload className="size-6" style={{ color: dragOver ? "var(--accent)" : "var(--text-secondary)" }} />
+        <Upload
+          className="size-6"
+          style={{ color: dragOver ? "var(--accent)" : "var(--text-secondary)" }}
+        />
         {dragOver ? "Drop files to upload" : "Drag & drop files, or click to browse"}
       </button>
 
@@ -262,7 +288,10 @@ function SkeletonRows() {
           className="flex items-center gap-3 rounded-xl border bg-white/50 p-4 dark:bg-black/5"
           style={{ borderColor: "var(--muted)" }}
         >
-          <div className="size-10 shrink-0 rounded-lg" style={{ backgroundColor: "var(--muted)" }} />
+          <div
+            className="size-10 shrink-0 rounded-lg"
+            style={{ backgroundColor: "var(--muted)" }}
+          />
           <div className="flex-1 space-y-2">
             <div className="h-3 w-1/3 rounded" style={{ backgroundColor: "var(--muted)" }} />
             <div className="h-3 w-1/2 rounded" style={{ backgroundColor: "var(--muted)" }} />
@@ -279,27 +308,20 @@ function SkeletonRows() {
  * Per-doc delete is new (M8 WEB-M8-8).
  */
 export function KnowledgePage() {
-  const [docs, setDocs] = useState<Document[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    setError(null);
-    return listDocuments(DOC_ORIGIN.knowledge)
-      .then(setDocs)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  };
+  /* Shared library store (knowledge origin) — single source of truth across pages. */
+  const { documents: docs, loaded, error, refresh } = useDocuments(DOC_ORIGIN.knowledge);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  }, []);
+    void refresh();
+  }, [refresh]);
 
+  // Poll while any knowledge doc is still being indexed server-side (M8 progress).
+  const hasProcessing = loaded && docs.some((d) => d.status === "processing");
   useEffect(() => {
-    if (!docs || !docs.some((d) => d.status === "processing")) return;
-    const timer = setInterval(() => load(), 2000);
+    if (!hasProcessing) return;
+    const timer = setInterval(() => refresh(), 2000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-armed by docs changes
-  }, [docs]);
+  }, [hasProcessing, refresh]);
 
   return (
     <main className="flex-1 w-full">
@@ -311,7 +333,7 @@ export function KnowledgePage() {
           </p>
         </header>
 
-        <Dropzone onUploaded={load} />
+        <Dropzone onUploaded={refresh} />
 
         {error && (
           <div
@@ -322,7 +344,7 @@ export function KnowledgePage() {
             <p>Failed to load knowledge documents: {error}</p>
             <button
               type="button"
-              onClick={load}
+              onClick={refresh}
               className="shrink-0 rounded-md px-3 py-1.5 font-medium"
               style={{ backgroundColor: "var(--error)", color: "var(--badge-solid-text)" }}
             >
@@ -331,23 +353,28 @@ export function KnowledgePage() {
           </div>
         )}
 
-        {docs === null && !error && (
+        {!loaded && !error && (
           <>
             <span className="sr-only">Loading knowledge documents…</span>
             <SkeletonRows />
           </>
         )}
 
-        {docs !== null && docs.length === 0 && (
+        {loaded && docs.length === 0 && (
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             No knowledge documents yet. Drop one above.
           </p>
         )}
 
-        {docs !== null && docs.length > 0 && (
+        {loaded && docs.length > 0 && (
           <div className="space-y-12">
             {SECTION_ORDER.map(({ key, label }) => (
-              <Section key={key} label={label} docs={docs.filter((d) => d.status === key)} onDeleted={load} />
+              <Section
+                key={key}
+                label={label}
+                docs={docs.filter((d) => d.status === key)}
+                onDeleted={refresh}
+              />
             ))}
           </div>
         )}

@@ -13,7 +13,7 @@ function renderAt(id: string) {
       <Routes>
         <Route path="/documents/:id" element={<DocumentDetailPage />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -22,7 +22,9 @@ describe("DocumentDetailPage", () => {
     listDocuments.mockResolvedValueOnce([]);
     renderAt("missing");
     expect(await screen.findByText("Not found")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Back to knowledge/ }).getAttribute("href")).toBe("/knowledge");
+    expect(screen.getByRole("link", { name: /Back to knowledge/ }).getAttribute("href")).toBe(
+      "/knowledge"
+    );
   });
 
   it("renders a ready document with its status and a doc-scoped chat CTA", async () => {
@@ -32,7 +34,9 @@ describe("DocumentDetailPage", () => {
     renderAt("d1");
     expect(await screen.findByText("Annual Report")).not.toBeNull();
     expect(screen.getByText("Ready")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Ask about this document/ }).getAttribute("href")).toBe("/chat?docId=d1");
+    expect(screen.getByRole("link", { name: /Ask about this document/ }).getAttribute("href")).toBe(
+      "/chat?docId=d1"
+    );
   });
 
   it("surfaces the ingestion error reason for an errored document", async () => {

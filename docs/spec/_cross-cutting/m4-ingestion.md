@@ -5,35 +5,40 @@
 - **Approval scope:** user standing instruction — "Run autonomously and complete M4 by yourself." No commits/pushes made unless explicitly approved later.
 
 ## Scope decision (recorded, not silent)
+
 M4 accepts **text content** via JSON body `{title, content}`. Binary PDF extraction is deferred: no PDF parser or multipart dependency is installed (`apps/api` deps are NestJS core only), and `nomic-embed-text` is a text model. UI copy that asserts PDF-specific failure is adjusted to the real reason. This satisfies API-DOC-3's state-machine requirement (processing → ready|error) without adding dependencies; PDF ingest is a candidate M5.
 
 ## Before → after
+
 M3 left `GET /api/documents` reading 3 dev-only seeded rows, no write path, and a Library "Upload" icon with no control. After M4: real uploads persist rows, the embedding pipeline (Ollama → Qdrant collection `documents`) runs per upload, status transitions are observable via the list endpoint, error rows carry a machine-readable reason shown in the UI, and the dev-only seed block is removed (PONYTAIL trigger satisfied).
 
 ## Deliverables
-| Path | Op | Reason |
-| --- | --- | --- |
-| `apps/api/src/lib/env.ts` | modify | add `qdrantBaseUrl` (env `QDRANT_BASE_URL`, default `http://localhost:6333`) |
-| `apps/api/src/lib/db.ts` | modify | drop dev-only seed block; guarded migration adding `error_reason TEXT`; keep status `CHECK` |
-| `apps/api/src/documents/ingest.ts` | create | chunk + Ollama embed + Qdrant upsert (plain global `fetch`, no SDK) |
-| `apps/api/src/documents/documents.service.ts` | modify | `upload()` orchestrates row lifecycle; `list()` maps `error_reason`; DTO gains optional `errorReason` |
-| `apps/api/src/documents/documents.controller.ts` | modify | `POST /api/documents` with body validation (400 on bad shape) |
-| `apps/web/src/lib/api.ts` | modify | `uploadDocument()`; `Document` gains optional `errorReason` (status union unchanged) |
-| `apps/web/src/pages/LibraryPage.tsx` | modify | working upload form (title + content) → POST → list refresh |
-| `apps/web/src/pages/DocumentDetailPage.tsx` | modify | show real `errorReason` for error docs; drop PDF-asserting copy |
-| `apps/web/src/lib/docMeta.ts` | modify | error-case excerpt text updated to match the real (text-body) ingestion scope |
+
+| Path                                             | Op     | Reason                                                                                                |
+| ------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------- |
+| `apps/api/src/lib/env.ts`                        | modify | add `qdrantBaseUrl` (env `QDRANT_BASE_URL`, default `http://localhost:6333`)                          |
+| `apps/api/src/lib/db.ts`                         | modify | drop dev-only seed block; guarded migration adding `error_reason TEXT`; keep status `CHECK`           |
+| `apps/api/src/documents/ingest.ts`               | create | chunk + Ollama embed + Qdrant upsert (plain global `fetch`, no SDK)                                   |
+| `apps/api/src/documents/documents.service.ts`    | modify | `upload()` orchestrates row lifecycle; `list()` maps `error_reason`; DTO gains optional `errorReason` |
+| `apps/api/src/documents/documents.controller.ts` | modify | `POST /api/documents` with body validation (400 on bad shape)                                         |
+| `apps/web/src/lib/api.ts`                        | modify | `uploadDocument()`; `Document` gains optional `errorReason` (status union unchanged)                  |
+| `apps/web/src/pages/LibraryPage.tsx`             | modify | working upload form (title + content) → POST → list refresh                                           |
+| `apps/web/src/pages/DocumentDetailPage.tsx`      | modify | show real `errorReason` for error docs; drop PDF-asserting copy                                       |
+| `apps/web/src/lib/docMeta.ts`                    | modify | error-case excerpt text updated to match the real (text-body) ingestion scope                         |
 
 ## Acceptance criteria
-| ID | Criterion |
-| --- | --- |
-| API-M4-1 | `POST /api/documents {title, content}` → 201 + final DTO; row transitions `processing` → `ready` with Ollama+Qdrant reachable; list reflects final status. |
+
+| ID       | Criterion                                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API-M4-1 | `POST /api/documents {title, content}` → 201 + final DTO; row transitions `processing` → `ready` with Ollama+Qdrant reachable; list reflects final status.                |
 | API-M4-2 | With embedding/vector store unreachable, row ends `error` with non-empty `error_reason`; status union identical in service, DTO, web `api.ts`, `StatusBadge`, DB `CHECK`. |
-| API-M4-3 | Qdrant collection `documents` holds points whose payload `document_id` matches the uploaded doc. |
-| WEB-M4-1 | Library upload control persists a document; list updates with the final-status badge. |
-| WEB-M4-2 | Detail page displays the real error reason for `error` docs. |
-| M4-SEED | Dev-only seed block removed from `db.ts`; first real rows replace samples. |
+| API-M4-3 | Qdrant collection `documents` holds points whose payload `document_id` matches the uploaded doc.                                                                          |
+| WEB-M4-1 | Library upload control persists a document; list updates with the final-status badge.                                                                                     |
+| WEB-M4-2 | Detail page displays the real error reason for `error` docs.                                                                                                              |
+| M4-SEED  | Dev-only seed block removed from `db.ts`; first real rows replace samples.                                                                                                |
 
 ## Verification plan
+
 1. Start `qdrant/qdrant` + `ollama/ollama` (local docker images present) and ensure `nomic-embed-text` is available; if the model pull fails, record it and still verify API-M4-2 via the unreachable path.
 2. `npm run build -w doc-api` / `-w doc-web` → exit 0.
 3. Boot API (cwd `apps/api`, `node dist/main.js`); curl POST happy path + failure path; inspect row states, Qdrant points, and enum sync across the 5 surfaces.
@@ -52,21 +57,26 @@ Environment: Docker containers `doc-qdrant` (Qdrant 1.20.0), `doc-ollama` (`nomi
 - **Enum sync (API-M4-2 invariant):** status union `"ready"|"processing"|"error"` unchanged across `documents.service.ts`, web `api.ts`, `StatusBadge.tsx`, and DB `CHECK`; both apps' builds pass, confirming no type drift.
 
 ### Fixes applied during verification (recorded, not silent)
+
 1. **Qdrant collection-create 404:** Qdrant 1.20.0 removed `POST /collections` and `POST /collections/{name}`; create is now `PUT /collections/{name}` with body `{vectors:{size,distance:"Cosine"}}`. Fixed in `ingest.ts`; verified live (collection `documents` created, size 768 Cosine).
 2. **Qdrant points-upsert 404:** `POST …/points/upsert` gone; upsert is now `PUT /collections/{name}/points` with UUID ids. Fixed in `ingest.ts`; verified live (happy path reached `ready`).
 3. **Terse network errorReason:** bare `fetch` failures surfaced as just `"fetch failed"`. Added a labeled `call(label,url,init)` helper wrapping all 4 fetch sites so reasons read e.g. `"Embedding request failed: fetch failed"`. Verified live on the error path.
 
 ### Test-state cleanup
+
 - Deleted all intermediate test rows from SQLite (5 rows) and the orphan Qdrant point `e389ea9f-…` (whose row was removed), so Qdrant↔SQLite are consistent: 2 `ready` docs each with exactly one point, 1 `error` doc with none.
 
 ## Non-goals / follow-ups
+
 - Binary/PDF text extraction and multipart upload (candidate M5).
 - Chat RAG retrieval against the new collection (M3 stub already fixes the SSE contract).
 - Async job queue for large documents (see PONYTAIL marker in `ingest.ts`).
 
 ## Limitations
+
 - No browser tooling in this environment: WEB-M4-1/2 verified via Vite-proxy round-trip + clean builds, not a live DOM pass (same boundary as M3).
 - Hindsight memory backend returned 401 (not authenticated) when attempting `capture_initiative`; recorded as an environment limitation, no retry.
 
 ## Next action
+
 M4 implemented and verified. Remaining: commit/push only on explicit user approval (approval policy: ask); then candidate M5 (PDF/multipart ingest or async queue per the PONYTAIL marker in `ingest.ts`).

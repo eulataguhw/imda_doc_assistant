@@ -1,25 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Check, ChevronDown, FileText, Link2, Paperclip, Plus, Send, X } from "lucide-react";
-import {
-  createSession,
-  getSession,
-  listDocuments,
-  listSessions,
-  streamChat,
-  uploadChatDocument,
-  type ChatSession,
-  type ChatStreamEvent,
-  type Document,
-} from "../../lib/api";
+import { uploadChatDocument, type Document } from "../../lib/api";
 import { ACCEPT_ATTR, DOC_ORIGIN, isAcceptedFile } from "../../lib/constants";
 import { toast } from "../../components/Toaster/Toaster";
 import { Markdown } from "../../components/Markdown/Markdown";
+import { useChatStream } from "../../hooks/useChatStream";
+import { useDocuments } from "../../hooks/useDocuments";
 import { SUGGESTIONS } from "./constants";
-import type { Citation, Message } from "./types";
-
-/** Generate a short unique id for client-only message rows. */
-const uid = () => Math.random().toString(36).slice(2, 10);
 
 /** Render a compact relative time for the "past conversations" list; empty string when unparseable. */
 function formatWhen(iso: string): string {
@@ -70,77 +58,57 @@ function AssistantAvatar() {
  * (via `?docId=` or the scope picker), with direct chat-origin attachments.
  * Streams assistant answers, renders markdown + inline [n] citation chips, and
  * supports starting fresh or reopening a past conversation.
+ *
+ * Conversation history + the active transcript live in the global `useSessionsStore`
+ * (via `useChatStream`) so they survive route changes; this page keeps only
+ * presentation-local state (composer text, RAG scope picker, attachment chips, drag cue).
  */
 export function ChatPage() {
   const [searchParams] = useSearchParams();
   const docId = searchParams.get("docId");
 
-  const [docs, setDocs] = useState<Document[] | null>(null);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  /* Presentation-local state: composer, RAG scope picker, attachments, drag cue. */
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  /* RAG scope: a single knowledge doc id, or null for the whole corpus (M8 / WEB-M8-2). */
   const [scopeDocId, setScopeDocId] = useState<string | null>(docId ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  /* Chat-origin docs attached to this conversation (M8 / WEB-M8-4 direct mode). */
   const [attachments, setAttachments] = useState<Document[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
 
-  const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const scopedDoc = docs?.find((d) => d.id === scopeDocId) ?? null;
+  /* Global chat state: sessions, active transcript, streaming — backed by useSessionsStore. */
+  const { sessions, activeId, messages, busy, send, newConversation, openSession } = useChatStream({
+    scopeDocId,
+    attachments,
+  });
+
+  /* Knowledge docs for the scope picker (global library store, knowledge origin). */
+  const { documents: docs, load: loadDocs } = useDocuments(DOC_ORIGIN.knowledge);
+
+  useEffect(() => {
+    void loadDocs();
+  }, [loadDocs]);
+
+  const scopedDoc = docs.find((d) => d.id === scopeDocId) ?? null;
   const scopeLabel = scopedDoc ? scopedDoc.title : "All documents";
 
-  useEffect(() => {
-    listDocuments(DOC_ORIGIN.knowledge).then(setDocs).catch(() => setDocs([]));
-    listSessions().then(setSessions).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const a = abortRef.current;
-    return () => a?.abort();
-  }, []);
-
-  /** Apply a partial update to one message row by id. */
-  function patchMessage(id: string, patch: Partial<Message>) {
-    setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-  }
-
-  /** Abandon the current stream and reset to an empty, fresh conversation. */
-  function newConversation() {
-    abortRef.current?.abort();
-    setCurrentSessionId(null);
-    setMessages([]);
+  /** Wrap the store-backed new-conversation to also clear presentation-local state. */
+  function handleNewConversation() {
+    newConversation();
     setAttachments([]);
     setInput("");
     setPickerOpen(false);
   }
 
-  /** Load a past conversation's transcript and make it the active session. */
-  async function openSession(id: string) {
-    if (id === currentSessionId) return;
-    abortRef.current?.abort();
+  /** Wrap the store-backed open-session to also clear composer/attachments on success. */
+  async function handleOpenSession(id: string) {
+    if (id === activeId) return;
     setPickerOpen(false);
-    try {
-      const detail = await getSession(id);
-      setCurrentSessionId(detail.id);
-      setMessages(
-        detail.messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          text: m.content,
-          citations: m.citations?.map((c) => ({ doc: c.documentId, title: c.title ?? "", page: c.page })),
-        })),
-      );
-      /* Attachments are not persisted per session (M8 minimal scope); the docs remain in Library and can be re-attached. */
+    const ok = await openSession(id);
+    if (ok) {
       setAttachments([]);
       setInput("");
-    } catch (e) {
-      toast("error", `Couldn't open that conversation — ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -158,7 +126,10 @@ export function ChatPage() {
         setAttachments((prev) => (prev.some((d) => d.id === doc.id) ? prev : [...prev, doc]));
         toast("success", `Attached “${doc.title}”`);
       } catch (e) {
-        toast("error", `Couldn't attach ${file.name} — ${e instanceof Error ? e.message : String(e)}`);
+        toast(
+          "error",
+          `Couldn't attach ${file.name} — ${e instanceof Error ? e.message : String(e)}`
+        );
       } finally {
         setUploadingCount((c) => c - 1);
       }
@@ -170,99 +141,18 @@ export function ChatPage() {
     setAttachments((prev) => prev.filter((d) => d.id !== id));
   }
 
-  /** Send a question: lazily create a server session, stream the answer, and fold in citations/errors. */
-  async function send(raw: string) {
-    const text = raw.trim();
-    if (!text || busy) return;
-
-    /* Lazily create a server session on the first message of a fresh conversation. */
-    let sessionId = currentSessionId;
-    if (!sessionId) {
-      try {
-        const created = await createSession(text.slice(0, 60));
-        sessionId = created.id;
-        setCurrentSessionId(sessionId);
-        setSessions((prev) => [created, ...prev]);
-      } catch (e) {
-        toast("error", `Couldn't start a conversation — ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-
-    setBusy(true);
+  /** Send a question (composer or a suggestion chip): clear the box, then stream via the hook. */
+  function submit(text: string) {
+    if (!text.trim() || busy) return;
     setInput("");
-    setMessages((ms) => [...ms, { id: uid(), role: "user", text }]);
-
-    const asstId = uid();
-    setMessages((ms) => [...ms, { id: asstId, role: "assistant", text: "", streaming: true }]);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const citations: Citation[] = [];
-    let answer = "";
-    let streamError: string | null = null;
-
-    const onEvent = (event: ChatStreamEvent) => {
-      if (event.type === "citation") {
-        citations.push({ doc: event.data.documentId, title: event.data.title, page: event.data.page });
-      } else if (event.type === "chunk") {
-        answer += event.data.delta;
-        patchMessage(asstId, { text: answer });
-      } else if (event.type === "error") {
-        streamError = event.data.message || "Unknown chat error";
-      }
-    };
-
-    try {
-      await streamChat({
-        question: text,
-        documentIds: scopeDocId ? [scopeDocId] : [],
-        attachments: attachments.map((d) => d.id),
-        /* sessionId drives server-side context + persistence (M8); `history` is retained as a client-side fallback in the API but omitted here. */
-        sessionId: sessionId ?? undefined,
-        onEvent,
-        signal: controller.signal,
-      });
-      if (streamError) {
-        toast("error", streamError);
-        patchMessage(asstId, {
-          text: answer
-            ? `${answer}\n\n— the answer stream ended early: ${streamError}`
-            : `Sorry — the answer stream failed: ${streamError}`,
-          streaming: false,
-          citations: citations.length > 0 ? citations : undefined,
-        });
-      } else {
-        patchMessage(asstId, {
-          text: answer || "No answer was generated.",
-          streaming: false,
-          citations: citations.length > 0 ? citations : undefined,
-        });
-      }
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        /* unmount / navigation abort — leave the in-flight message as-is */
-        return;
-      }
-      const message = e instanceof Error ? e.message : String(e);
-      toast("error", message);
-      patchMessage(asstId, {
-        text: `Sorry — the answer stream failed: ${message}`,
-        streaming: false,
-        citations: citations.length > 0 ? citations : undefined,
-      });
-    } finally {
-      abortRef.current = null;
-      setBusy(false);
-      listSessions().then(setSessions).catch(() => {});
-    }
+    void send(text);
   }
 
   /** Submit on Enter (Shift+Enter inserts a newline). */
   function onComposerKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      send(input);
+      submit(input);
     }
   }
 
@@ -280,20 +170,27 @@ export function ChatPage() {
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={newConversation}
+            onClick={handleNewConversation}
             className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--muted)]"
             style={{ borderColor: "var(--muted)", color: "var(--foreground)" }}
           >
             <Plus className="size-3.5" /> New conversation
           </button>
           {sessions.length > 0 && (
-            <label className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <label
+              className="inline-flex items-center gap-2 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Past conversations
               <select
-                value={currentSessionId ?? ""}
-                onChange={(e) => e.target.value && openSession(e.target.value)}
+                value={activeId ?? ""}
+                onChange={(e) => e.target.value && handleOpenSession(e.target.value)}
                 className="rounded-lg border px-2 py-1.5 text-xs"
-                style={{ backgroundColor: "var(--background)", borderColor: "var(--muted)", color: "var(--foreground)" }}
+                style={{
+                  backgroundColor: "var(--background)",
+                  borderColor: "var(--muted)",
+                  color: "var(--foreground)",
+                }}
                 aria-label="Past conversations"
               >
                 {sessions.map((s) => (
@@ -308,16 +205,19 @@ export function ChatPage() {
 
         {showSuggestions ? (
           <div className="mb-12 text-center">
-            <h2 className="mb-4 text-2xl font-semibold tracking-tight">How can I help you today?</h2>
+            <h2 className="mb-4 text-2xl font-semibold tracking-tight">
+              How can I help you today?
+            </h2>
             <p className="mx-auto mb-6 max-w-md text-sm" style={{ color: "var(--text-secondary)" }}>
-              Ask about your knowledge base, or drop a PDF/DOCX into the box below to answer from that document directly.
+              Ask about your knowledge base, or drop a PDF/DOCX into the box below to answer from
+              that document directly.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s.key}
                   type="button"
-                  onClick={() => send(s.label)}
+                  onClick={() => submit(s.label)}
                   className="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-[var(--muted)]"
                   style={{ borderColor: "var(--muted)", color: "var(--foreground)" }}
                 >
@@ -330,7 +230,7 @@ export function ChatPage() {
           <div className="space-y-8">
             {messages.map((m) =>
               m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
+                <div key={m.id} className="sd-msg-enter flex justify-end">
                   <div
                     className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-tr-none px-4 py-3 text-sm leading-relaxed shadow-sm"
                     style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
@@ -339,7 +239,7 @@ export function ChatPage() {
                   </div>
                 </div>
               ) : (
-                <div key={m.id} className="flex items-start gap-3">
+                <div key={m.id} className="sd-msg-enter flex items-start gap-3">
                   <AssistantAvatar />
                   <div className="max-w-[90%] space-y-4">
                     {m.streaming && m.text === "" ? (
@@ -350,12 +250,18 @@ export function ChatPage() {
                         <TypingDots />
                       </div>
                     ) : (
-                      /* M8 / WEB-M8-3: render markdown + inline [n] citation chips. */
-                      <Markdown text={m.text} citations={m.citations} />
+                      <>
+                        {/* M8 / WEB-M8-3: render markdown + inline [n] citation chips. */}
+                        <Markdown text={m.text} citations={m.citations} />
+                        {m.streaming && (
+                          /* Live typing cursor while the answer is still streaming (WEB-6). */
+                          <span className="sd-stream-cursor" aria-hidden="true" />
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-              ),
+              )
             )}
           </div>
         )}
@@ -387,7 +293,10 @@ export function ChatPage() {
             {/* Drop-target cue while a file hovers over the composer. */}
             {dragOver && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-                <span className="rounded-lg px-3 py-1.5 text-sm font-medium" style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}>
+                <span
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium"
+                  style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}
+                >
                   Drop PDF or DOCX to attach
                 </span>
               </div>
@@ -405,11 +314,17 @@ export function ChatPage() {
                 >
                   <Link2 className="size-3.5" style={{ color: "var(--accent)" }} />
                   <span>Scoped to: {scopeLabel}</span>
-                  <ChevronDown className={`size-3.5 transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown
+                    className={`size-3.5 transition-transform ${pickerOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
                 {pickerOpen && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} aria-hidden />
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setPickerOpen(false)}
+                      aria-hidden
+                    />
                     <ul
                       role="listbox"
                       aria-label="Scope the answer to a document"
@@ -427,10 +342,12 @@ export function ChatPage() {
                           style={{ color: "var(--foreground)" }}
                         >
                           All documents
-                          {scopeDocId === null && <Check className="size-3.5" style={{ color: "var(--accent)" }} />}
+                          {scopeDocId === null && (
+                            <Check className="size-3.5" style={{ color: "var(--accent)" }} />
+                          )}
                         </button>
                       </li>
-                      {(docs ?? []).map((d) => (
+                      {docs.map((d) => (
                         <li key={d.id}>
                           <button
                             type="button"
@@ -442,7 +359,12 @@ export function ChatPage() {
                             style={{ color: "var(--foreground)" }}
                           >
                             <span className="truncate">{d.title}</span>
-                            {scopeDocId === d.id && <Check className="size-3.5 shrink-0" style={{ color: "var(--accent)" }} />}
+                            {scopeDocId === d.id && (
+                              <Check
+                                className="size-3.5 shrink-0"
+                                style={{ color: "var(--accent)" }}
+                              />
+                            )}
                           </button>
                         </li>
                       ))}
@@ -494,13 +416,17 @@ export function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onComposerKey}
                 rows={2}
-                placeholder={attachments.length > 0 ? "Ask about the attached document…" : "Ask a question, or drop a PDF/DOCX to attach…"}
+                placeholder={
+                  attachments.length > 0
+                    ? "Ask about the attached document…"
+                    : "Ask a question, or drop a PDF/DOCX to attach…"
+                }
                 className="flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm focus:ring-0"
                 style={{ color: "var(--foreground)" }}
               />
               <button
                 type="button"
-                onClick={() => send(input)}
+                onClick={() => submit(input)}
                 disabled={busy || input.trim() === ""}
                 className="rounded-lg p-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
