@@ -1,26 +1,5 @@
-import type { Document } from "../lib/api";
-
-const TOKEN: Record<Document["status"], string> = {
-  ready: "--ready",
-  processing: "--processing",
-  error: "--error",
-};
-
-const LABEL: Record<Document["status"], string> = {
-  ready: "Ready",
-  processing: "Processing",
-  error: "Error",
-};
-
-interface StatusBadgeProps {
-  status: Document["status"];
-  /**
-   * solid — filled pill with white text (Library cards).
-   * soft — bordered, tinted background + dot indicator (Document detail header).
-   */
-  variant?: "solid" | "soft";
-  className?: string;
-}
+import { LABEL, TOKEN } from "./constants";
+import type { StatusBadgeProps } from "./types";
 
 /** Color-coded status pill driven by the semantic tokens in styles/globals.css. */
 export function StatusBadge({ status, variant = "solid", className }: StatusBadgeProps) {
@@ -46,8 +25,12 @@ export function StatusBadge({ status, variant = "solid", className }: StatusBadg
     );
   }
 
+  /** solid text uses --badge-solid-text (white in light, near-black in dark) to keep AA in both themes. */
   return (
-    <span className={base} style={{ backgroundColor: `var(${token})`, color: "#ffffff" }}>
+    <span
+      className={base}
+      style={{ backgroundColor: `var(${token})`, color: "var(--badge-solid-text)" }}
+    >
       {LABEL[status]}
     </span>
   );

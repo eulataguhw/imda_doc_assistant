@@ -4,15 +4,15 @@
 
 ### Color tokens (oklch, semantic)
 
-| Token | Light (`:root`) | Dark (`.dark`) | Used for |
-| --- | --- | --- | --- |
-| `--background` | `oklch(0.985 0.004 90)` | `oklch(0.19 0.008 280)` | App background (warm off-white / deep indigo-black) |
-| `--foreground` | `oklch(0.21 0.01 70)` | `oklch(0.93 0.005 80)` | Primary text |
-| `--muted` | `oklch(0.94 0.006 80)` | `oklch(0.26 0.008 280)` | Borders, loading text, row dividers, fallback badge bg |
-| `--accent` | `oklch(0.62 0.21 275)` | `oklch(0.72 0.18 280)` | Indigo accent: back links, active hints, interactive emphasis |
-| `--ready` | `oklch(0.62 0.15 155)` | `oklch(0.74 0.14 155)` | Status pill "ready" (green) |
-| `--processing` | `oklch(0.72 0.14 80)` | `oklch(0.80 0.13 80)` | Status pill "processing" (amber) |
-| `--error` | `oklch(0.60 0.19 25)` | `oklch(0.71 0.16 25)` | Status pill "error" + error text (red) |
+| Token          | Light (`:root`)         | Dark (`.dark`)          | Used for                                                      |
+| -------------- | ----------------------- | ----------------------- | ------------------------------------------------------------- |
+| `--background` | `oklch(0.985 0.004 90)` | `oklch(0.19 0.008 280)` | App background (warm off-white / deep indigo-black)           |
+| `--foreground` | `oklch(0.21 0.01 70)`   | `oklch(0.93 0.005 80)`  | Primary text                                                  |
+| `--muted`      | `oklch(0.94 0.006 80)`  | `oklch(0.26 0.008 280)` | Borders, loading text, row dividers, fallback badge bg        |
+| `--accent`     | `oklch(0.62 0.21 275)`  | `oklch(0.72 0.18 280)`  | Indigo accent: back links, active hints, interactive emphasis |
+| `--ready`      | `oklch(0.62 0.15 155)`  | `oklch(0.74 0.14 155)`  | Status pill "ready" (green)                                   |
+| `--processing` | `oklch(0.72 0.14 80)`   | `oklch(0.80 0.13 80)`   | Status pill "processing" (amber)                              |
+| `--error`      | `oklch(0.60 0.19 25)`   | `oklch(0.71 0.16 25)`   | Status pill "error" + error text (red)                        |
 
 ### Typography
 
@@ -48,7 +48,7 @@ Tailwind CSS v4.3.3, CSS-first configuration via `@tailwindcss/vite` — **no `t
   --accent: oklch(0.62 0.21 275);
   --ready: oklch(0.62 0.15 155);
   --processing: oklch(0.72 0.14 80);
-  --error: oklch(0.60 0.19 25);
+  --error: oklch(0.6 0.19 25);
 }
 
 html.dark {
@@ -57,7 +57,7 @@ html.dark {
   --muted: oklch(0.26 0.008 280);
   --accent: oklch(0.72 0.18 280);
   --ready: oklch(0.74 0.14 155);
-  --processing: oklch(0.80 0.13 80);
+  --processing: oklch(0.8 0.13 80);
   --error: oklch(0.71 0.16 25);
 }
 

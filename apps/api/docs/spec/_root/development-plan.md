@@ -4,4 +4,4 @@
 - **Order:** 1) env config (`lib`) → 2) domain modules → 3) bootstrap wiring. M1 delivered all three.
 - **Validation:** `npm run build -w doc-api` exit 0; server boots on :3001; `curl http://localhost:3001/api/documents` returns 200.
 - **Rollout/recovery:** single process, stateless in M1; recovery = restart. No migrations owned by this package.
-- **Status:** M1 complete + verified 2026-10-22. M2 adds no bootstrap changes.
+- **Status:** M1 complete + verified 2026-10-22. M2–M4 add no bootstrap changes (config reads live in `lib`). M5: dependency manifest for file upload, `start` script loads `.env` via Node 24 `--env-file`, real `.env` + refreshed `.env.example` per master-plan ENV contract ([record](../../../../../../docs/spec/_cross-cutting/m5-file-upload.md)).
