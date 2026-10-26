@@ -1,13 +1,13 @@
 # Working Memory — Doc Assistant
 
-- **Updated:** 2026-10-26 (Tech-challenge gap-closure complete + verified + committed to `feat/web-ui`)
-- **Goal status:** Gap-closure DONE. All five required groups closed; every gate green. Committed as `c6e8817` (gap closure) + `d58ae51` (`/api/health`) on top of the M4–M8 refactor commit `272725d`. Not pushed (push only on request).
+- **Updated:** 2026-10-26 (jest-axe a11y + snapshot tests wired, nested `<main>` fixed; all gates green; **pushed to origin**)
+- **Goal status:** Gap-closure DONE + a11y/testing polish DONE. All five required groups closed; every gate green. Committed as `c6e8817` (gap closure) + `d58ae51` (`/api/health`) + `c96bfe2` (jest-axe a11y + snapshot tests, nested `<main>` fix). **Pushed:** `origin/feat/web-ui` = `c96bfe2` (local/remote in sync, clean tree) via the new PAT with `workflow` scope.
 
 ## Current state
 
 - **Gap-closure pass complete (2026-10-26):** Closed all five challenge gap groups against "AI-Powered Document Assistant | Frontend Engineer (Gen AI) v1.0".
   - **Docs:** README rewritten + `ARCHITECTURE.md`, `DESIGN.md`, `TESTING.md`, `INNOVATION_ASSESSMENT.md` authored; claims verified against source (coverage floors, SSE contract, tokens).
-  - **Testing:** 7 API test files added → **83 tests** (13 files); coverage enforced ≥80% on all four metrics in BOTH apps — web aggregate 90.5/81.91/82.52/90.5, api 92.88/84.3/98.07/92.88. Snapshot + jest-axe deps present but not yet wired (documented as a known gap in TESTING.md).
+  - **Testing:** 7 API test files added → **83 tests** (13 files); coverage enforced ≥80% on all four metrics in BOTH apps — web aggregate 90.5/81.96/82.69/90.5, api 92.88/84.3/98.07/92.88. Snapshot + jest-axe now WIRED (`AppShell.snapshot.test.tsx` committed snapshots + `AppShell.a11y.test.tsx` no-violations & single labelled nav; web suite 73/73). Nested `<main>` per-page converted to `<div>` — only `App.tsx` keeps the canonical `<main id="main">`.
   - **DevOps:** `Dockerfile` + `docker-compose.yml`, GitHub Actions CI (lint + typecheck + test + both coverage gates), eslint + prettier configs, `.env.example`; added `GET /api/health` liveness endpoint so the compose healthcheck works (was polling a non-existent route) — live-verified HTTP 200.
   - **Architecture:** React.lazy/Suspense code-splitting per page + `RouteFallback`; global state lifted to shared Zustand stores (`useSessionsStore`, `useDocumentsStore` with origin filtering via `selectByOrigin`) — single source of truth surviving route changes.
   - **UI/a11y:** streaming cursor + message fade-in (reduced-motion safe), skip link, responsive nav wrap, `<main id="main">` landmark, WCAG AA contrast tokens.
@@ -46,8 +46,8 @@
 
 ## Next action
 
-1. Gap-closure is committed to `feat/web-ui` (`c6e8817`, `d58ae51`). Push on explicit request only.
-2. Optional polish (not required, not done): wire the already-present snapshot + jest-axe deps into a web suite; add a document-comparison view or highlighted-PDF scroll-to-citation (challenge bonus items).
+1. All committed work pushed: `origin/feat/web-ui` = `c96bfe2` (in sync, clean tree).
+2. Optional polish (not required, not done): document-comparison view or highlighted-PDF scroll-to-citation (challenge bonus items). Snapshot + jest-axe now wired in this pass.
 3. Any new milestone starts from this boundary.
 
 ## Links
