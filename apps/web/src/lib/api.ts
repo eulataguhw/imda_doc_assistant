@@ -1,15 +1,16 @@
-/**
- * Document origin. In sync with the API's `documents.origin` enum (M8):
- * `knowledge` = RAG docs (embedded → Qdrant); `chat` = user-uploaded docs
- * attached to a chat message (stored in SQLite, no embedding).
- */
-export type DocumentOrigin = "knowledge" | "chat";
+import { API_BASE, DocOrigin, DocStatus } from "./constants";
+
+/** Document origin. In sync with the API's `documents.origin` enum (M8). */
+export type DocumentOrigin = DocOrigin;
+
+/** Document processing status, in sync with the API's document status enum. */
+export type DocumentStatus = DocStatus;
 
 export interface Document {
   id: string;
   title: string;
-  // Keep in sync with the API's document status enum (enum-sync invariant).
-  status: "ready" | "processing" | "error";
+  /** Processing status; one of `ready` | `processing` | `error`. */
+  status: DocumentStatus;
   /** Origin of the document (M8). Absent on legacy rows → treat as `knowledge` for filtering. */
   origin?: DocumentOrigin;
   errorReason?: string | null;
@@ -25,7 +26,7 @@ export interface Document {
   createdAt?: string | null;
 }
 
-const BASE = "/api";
+const BASE = API_BASE;
 
 /**
  * GET /api/documents — live list with per-document status.
@@ -125,7 +126,7 @@ async function postErrorMessage(res: Response, fallback: string): Promise<string
     if (typeof data?.message === "string") message = data.message;
     else if (Array.isArray(data?.message)) message = data.message.join("; ");
   } catch {
-    // non-JSON body — keep the HTTP status message
+    /** Non-JSON error body — fall back to the HTTP status message. */
   }
   return message;
 }
@@ -235,12 +236,13 @@ export async function streamChat(params: {
         if (!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
         if (!payload || payload === "[DONE]") continue;
-        // The API emits FLAT events ({type, ...fields}); map them onto this client's nested event shape.
+        /** The API emits flat events; map each onto this client's nested event shape. */
         let parsed: Record<string, unknown>;
         try {
           parsed = JSON.parse(payload) as Record<string, unknown>;
         } catch {
-          continue; // defensive: skip malformed frames rather than kill the stream
+          /** Defensive: skip a malformed frame rather than killing the whole stream. */
+          continue;
         }
         if (parsed.type === "citation") {
           const data: ChatCitation = {

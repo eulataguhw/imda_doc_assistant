@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-vi.mock("../lib/api", () => ({
+vi.mock("../../lib/api", () => ({
   listDocuments: vi.fn(),
   deleteDocument: vi.fn(async (_id: string) => {}),
 }));
 
 import { LibraryPage } from "./LibraryPage";
-import { listDocuments, deleteDocument } from "../lib/api";
+import { listDocuments, deleteDocument } from "../../lib/api";
+import { DOC_ORIGIN } from "../../lib/constants";
 
 const CHAT_DOCS = [{ id: "c1", title: "Uploaded Briefing", status: "ready", origin: "chat" }];
 
@@ -25,7 +26,7 @@ describe("LibraryPage (M8 / WEB-M8-9)", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("Uploaded Briefing")).toBeTruthy();
-    expect(listDocuments).toHaveBeenCalledWith("chat");
+    expect(listDocuments).toHaveBeenCalledWith(DOC_ORIGIN.chat);
     expect(screen.getByRole("button", { name: /Remove chat document: Uploaded Briefing/ })).toBeTruthy();
   });
 

@@ -2,26 +2,17 @@ import { Link } from "react-router";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { FileText } from "lucide-react";
-import { citeLinks } from "../lib/markdown";
-
-/** A source citation chip (M8). `doc` is the document id the chip links to. */
-interface Citation {
-  doc: string;
-  title: string;
-  page?: number;
-}
-
-const CITE_PREFIX = "#cite-";
-
-const chipClass =
-  "mx-0.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 align-middle text-[11px] font-semibold transition-opacity hover:opacity-75";
+import { CITE_PREFIX } from "../../lib/constants";
+import { citeLinks } from "../../lib/markdown";
+import { CHIP_CLASS } from "./constants";
+import type { MarkdownProps } from "./types";
 
 /**
- * Render an assistant message as markdown (M8 / WEB-M8-3): headings, lists,
- * code, tables via remark-gfm, and inline `[n]` citation markers turned into
- * clickable source chips that link to /documents/:id.
+ * Render an assistant message as markdown (M8 / WEB-M8-3): headings, lists, code
+ * and tables via remark-gfm, plus inline `[n]` citation markers turned into
+ * clickable source chips that link to `/documents/:id`.
  */
-export function Markdown({ text, citations = [] }: { text: string; citations?: Citation[] }) {
+export function Markdown({ text, citations = [] }: MarkdownProps) {
   const components: Components = {
     a: ({ href, children }) => {
       if (href && href.startsWith(CITE_PREFIX)) {
@@ -31,7 +22,7 @@ export function Markdown({ text, citations = [] }: { text: string; citations?: C
           return (
             <Link
               to={`/documents/${encodeURIComponent(c.doc)}`}
-              className={chipClass}
+              className={CHIP_CLASS}
               style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
             >
               <FileText className="size-3" />
@@ -40,10 +31,10 @@ export function Markdown({ text, citations = [] }: { text: string; citations?: C
             </Link>
           );
         }
-        // No matching citation for this marker — render the bracket as plain text.
+        /** No matching citation for this marker — render the bracket as plain text. */
         return <span>{children}</span>;
       }
-      // Regular (non-citation) link — rare in grounded answers; keep it clickable.
+      /** Regular (non-citation) link — rare in grounded answers; keep it clickable. */
       return (
         <a href={href} rel="noreferrer" target="_blank">
           {children}

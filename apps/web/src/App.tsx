@@ -1,19 +1,21 @@
 import { Navigate, Route, Routes, useLocation } from "react-router";
-import { AppShell } from "./components/AppShell";
-import { Toaster } from "./components/Toaster";
-import { KnowledgePage } from "./pages/KnowledgePage";
-import { LibraryPage } from "./pages/LibraryPage";
-import { DocumentDetailPage } from "./pages/DocumentDetailPage";
-import { ChatPage } from "./pages/ChatPage";
+import { ROUTE_CHAT, ROUTE_KNOWLEDGE, ROUTE_LIBRARY } from "./lib/constants";
+import { AppShell } from "./components/AppShell/AppShell";
+import type { ActiveSection } from "./components/AppShell/types";
+import { Toaster } from "./components/Toaster/Toaster";
+import { KnowledgePage } from "./pages/KnowledgePage/KnowledgePage";
+import { LibraryPage } from "./pages/LibraryPage/LibraryPage";
+import { DocumentDetailPage } from "./pages/DocumentDetailPage/DocumentDetailPage";
+import { ChatPage } from "./pages/ChatPage/ChatPage";
 
 /** Routed views under a single shared shell (client-side SPA routing). */
 export default function App() {
   const { pathname } = useLocation();
-  // M8: three primary sections. /chat → Chat; /library → chat-origin docs;
-  // everything else (Knowledge, document detail) highlights Knowledge.
-  const activeItem: "knowledge" | "library" | "chat" = pathname.startsWith("/chat")
+
+  /** M8: three primary sections — /chat → chat, /library → library, everything else highlights knowledge. */
+  const activeItem: ActiveSection = pathname.startsWith(ROUTE_CHAT)
     ? "chat"
-    : pathname.startsWith("/library")
+    : pathname.startsWith(ROUTE_LIBRARY)
       ? "library"
       : "knowledge";
 
@@ -22,12 +24,12 @@ export default function App() {
       <AppShell activeItem={activeItem} />
       <Toaster />
       <Routes>
-        <Route path="/" element={<Navigate to="/knowledge" replace />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/" element={<Navigate to={ROUTE_KNOWLEDGE} replace />} />
+        <Route path={ROUTE_KNOWLEDGE} element={<KnowledgePage />} />
+        <Route path={ROUTE_LIBRARY} element={<LibraryPage />} />
         <Route path="/documents/:id" element={<DocumentDetailPage />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="*" element={<Navigate to="/knowledge" replace />} />
+        <Route path={ROUTE_CHAT} element={<ChatPage />} />
+        <Route path="*" element={<Navigate to={ROUTE_KNOWLEDGE} replace />} />
       </Routes>
     </div>
   );

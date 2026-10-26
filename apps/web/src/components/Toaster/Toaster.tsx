@@ -1,22 +1,9 @@
 import { X } from "lucide-react";
 import { create } from "zustand";
+import { AUTO_DISMISS_MS, DISMISS_ICON_OPACITY, KIND_COLOR } from "./constants";
+import type { ToastKind, ToastState } from "./types";
 
-type ToastKind = "success" | "error";
-
-interface Toast {
-  id: number;
-  kind: ToastKind;
-  message: string;
-}
-
-const AUTO_DISMISS_MS = 5000;
 let nextId = 1;
-
-interface ToastState {
-  toasts: Toast[];
-  push: (kind: ToastKind, message: string) => void;
-  dismiss: (id: number) => void;
-}
 
 /** App-wide toast store — fire from anywhere with `toast("success" | "error", msg)`. */
 export const useToastStore = create<ToastState>()((set) => ({
@@ -33,11 +20,6 @@ export const useToastStore = create<ToastState>()((set) => ({
 export function toast(kind: ToastKind, message: string) {
   useToastStore.getState().push(kind, message);
 }
-
-const KIND_COLOR: Record<ToastKind, string> = {
-  success: "--ready",
-  error: "--error",
-};
 
 /** Fixed bottom-right viewport; mount once in App.tsx. */
 export function Toaster() {
@@ -66,8 +48,7 @@ export function Toaster() {
             aria-label="Dismiss notification"
             onClick={() => dismiss(t.id)}
             className="shrink-0 rounded p-0.5 hover:opacity-100"
-            // 85% keeps the icon ≥ 3:1 against background in dark theme (M7 / WEB-M7-4).
-            style={{ color: "var(--foreground)", opacity: 0.85 }}
+            style={{ color: "var(--foreground)", opacity: DISMISS_ICON_OPACITY }}
           >
             <X className="size-4" />
           </button>

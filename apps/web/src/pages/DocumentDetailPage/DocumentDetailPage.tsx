@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, ArrowRight, FileText, FileWarning } from "lucide-react";
-import { listDocuments, type Document } from "../lib/api";
-import { getDocDisplayMeta } from "../lib/docMeta";
-import { StatusBadge } from "../components/StatusBadge";
+import { listDocuments, type Document } from "../../lib/api";
+import { getDocDisplayMeta } from "../../lib/docMeta";
+import { ROUTE_CHAT, ROUTE_KNOWLEDGE, ROUTE_LIBRARY } from "../../lib/constants";
+import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 
+/** Back-to-list link with a left arrow; `to` is the target route, `label` the visible text. */
 function BackLink({ to, label }: { to: string; label: string }) {
   return (
     <Link
@@ -17,6 +19,7 @@ function BackLink({ to, label }: { to: string; label: string }) {
   );
 }
 
+/** Document detail view: header (icon, title, status/metadata), a doc-scoped chat CTA, and an extracted-content preview. */
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [doc, setDoc] = useState<Document | null>(null);
@@ -37,7 +40,7 @@ export function DocumentDetailPage() {
     return (
       <main className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
-          <BackLink to="/knowledge" label="Back to knowledge" />
+          <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
           <h1 className="text-xl font-semibold">{notFound ? "Not found" : "Document"}</h1>
           {error && (
             <p style={{ color: "var(--error)" }}>Failed to load: {error}</p>
@@ -54,7 +57,7 @@ export function DocumentDetailPage() {
     return (
       <main className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
-          <BackLink to="/knowledge" label="Back to knowledge" />
+          <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
           <h1 className="text-xl font-semibold">Document</h1>
           <p style={{ color: "var(--text-secondary)" }}>Loading…</p>
         </div>
@@ -68,9 +71,9 @@ export function DocumentDetailPage() {
   return (
     <main className="flex-1 mx-auto w-full max-w-4xl p-6">
       {doc.origin === "chat" ? (
-        <BackLink to="/library" label="Back to library" />
+        <BackLink to={ROUTE_LIBRARY} label="Back to library" />
       ) : (
-        <BackLink to="/knowledge" label="Back to knowledge" />
+        <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
       )}
 
       {/* Header: file icon + title + status/metadata */}
@@ -131,7 +134,7 @@ export function DocumentDetailPage() {
       {/* Primary action → doc-scoped chat */}
       <section className="mb-10 flex flex-col items-center gap-4 sm:flex-row">
         <Link
-          to={`/chat?docId=${encodeURIComponent(doc.id)}`}
+          to={`${ROUTE_CHAT}?docId=${encodeURIComponent(doc.id)}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 text-base font-medium shadow-sm transition-opacity hover:opacity-90 sm:w-auto"
           style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
         >
@@ -153,9 +156,9 @@ export function DocumentDetailPage() {
           style={{ borderColor: "var(--muted)" }}
         >
           <div className="custom-scrollbar max-h-64 overflow-y-auto p-6">
+            {/* Full-opacity --error / --text-secondary keep AA in both themes (M7 / WEB-M7-4). */}
             <p
               className="text-sm leading-relaxed"
-              // Full-opacity --error and the AA-passing --text-secondary replace old opacity blends (M7 / WEB-M7-4).
               style={isError ? { color: "var(--error)" } : { color: "var(--text-secondary)" }}
             >
               {meta.excerpt}

@@ -1,39 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ArrowRight, FileText, FileWarning, Trash2, Upload } from "lucide-react";
-import { deleteDocument, listDocuments, uploadDocumentFile, type Document } from "../lib/api";
-import { getDocDisplayMeta } from "../lib/docMeta";
-import { StatusBadge } from "../components/StatusBadge";
-import { toast } from "../components/Toaster";
+import { deleteDocument, listDocuments, uploadDocumentFile, type Document } from "../../lib/api";
+import { getDocDisplayMeta } from "../../lib/docMeta";
+import { ACCEPT_ATTR, DOC_ORIGIN, ROUTE_CHAT, documentRoute, isAcceptedFile } from "../../lib/constants";
+import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
+import { toast } from "../../components/Toaster/Toaster";
+import { MAX_UPLOAD_MB, SECTION_ORDER, UPLOAD_CONCURRENCY } from "./constants";
 
-type Group = "ready" | "processing" | "error";
-
-const ACCEPTED_EXTENSIONS = [".pdf", ".docx"];
-// PONYTAIL: client-side 10 MB cap mirrors the server's MAX_UPLOAD_MB env var —
-// ceiling: UI convenience only; the API is the source of truth and re-validates.
-// upgrade: fetch the limit from the server if it becomes per-deployment config.
-const MAX_UPLOAD_MB = 10;
-const UPLOAD_CONCURRENCY = 2;
-
+/** Reject a candidate upload before it hits the network; returns a reason string or null when acceptable. */
 function validateFile(file: File): string | null {
-  const dot = file.name.lastIndexOf(".");
-  const ext = dot === -1 ? "" : file.name.slice(dot).toLowerCase();
-  if (!ACCEPTED_EXTENSIONS.includes(ext)) return "unsupported type";
+  if (!isAcceptedFile(file)) return "unsupported type";
   if (file.size > MAX_UPLOAD_MB * 1024 * 1024) return `too large (max ${MAX_UPLOAD_MB} MB)`;
   return null;
 }
 
+/** Progress text for a document still being indexed server-side. */
 function progressLabel(doc: Document): string {
   return doc.progress
     ? `${doc.progress.stage} ${doc.progress.done}/${doc.progress.total} chunks`
     : "Indexing…";
 }
-
-const SECTION_ORDER: { key: Group; label: string }[] = [
-  { key: "ready", label: "Ready" },
-  { key: "processing", label: "Processing" },
-  { key: "error", label: "Errors" },
-];
 
 /**
  * Card for a knowledge-origin RAG document (M8 WEB-M8-8). Adds a per-doc Delete
@@ -100,7 +87,7 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
 
       <div className="min-w-0">
         <h3 className="line-clamp-2 text-sm font-medium">
-          <Link to={`/documents/${doc.id}`} className="hover:underline">
+          <Link to={documentRoute(doc.id)} className="hover:underline">
             {doc.title}
           </Link>
         </h3>
@@ -115,7 +102,7 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
       <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: "var(--muted)" }}>
         {doc.status === "ready" ? (
           <Link
-            to={`/chat?docId=${encodeURIComponent(doc.id)}`}
+            to={`${ROUTE_CHAT}?docId=${encodeURIComponent(doc.id)}`}
             className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
             style={{ color: "var(--accent)" }}
           >
@@ -140,6 +127,7 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
   );
 }
 
+/** Renders a single status group; returns null when it has no documents. */
 function Section({ label, docs, onDeleted }: { label: string; docs: Document[]; onDeleted: () => void }) {
   if (docs.length === 0) return null;
   return (
@@ -159,6 +147,7 @@ function Section({ label, docs, onDeleted }: { label: string; docs: Document[]; 
   );
 }
 
+/** Upload surface: drag & drop or click-to-browse, uploading through a small worker pool. */
 function Dropzone({ onUploaded }: { onUploaded: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -246,7 +235,7 @@ function Dropzone({ onUploaded }: { onUploaded: () => void }) {
         ref={inputRef}
         type="file"
         multiple
-        accept=".pdf,.docx"
+        accept={ACCEPT_ATTR}
         className="hidden"
         onChange={(e) => {
           void handleFiles(Array.from(e.target.files ?? []));
@@ -263,6 +252,7 @@ function Dropzone({ onUploaded }: { onUploaded: () => void }) {
   );
 }
 
+/** Presentational loading placeholder — hidden from AT; a single sr-only label is announced instead. */
 function SkeletonRows() {
   return (
     <div aria-hidden="true" className="space-y-4">
@@ -294,7 +284,7 @@ export function KnowledgePage() {
 
   const load = () => {
     setError(null);
-    return listDocuments("knowledge")
+    return listDocuments(DOC_ORIGIN.knowledge)
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };

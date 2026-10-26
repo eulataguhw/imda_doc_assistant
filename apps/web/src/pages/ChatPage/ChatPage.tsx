@@ -11,37 +11,17 @@ import {
   type ChatSession,
   type ChatStreamEvent,
   type Document,
-} from "../lib/api";
-import { toast } from "../components/Toaster";
-import { Markdown } from "../components/Markdown";
+} from "../../lib/api";
+import { ACCEPT_ATTR, DOC_ORIGIN, isAcceptedFile } from "../../lib/constants";
+import { toast } from "../../components/Toaster/Toaster";
+import { Markdown } from "../../components/Markdown/Markdown";
+import { SUGGESTIONS } from "./constants";
+import type { Citation, Message } from "./types";
 
-type Role = "user" | "assistant";
-
-interface Citation {
-  /** Document id the chip links to (/documents/:id). */
-  doc: string;
-  /** Document title (resolved server-side on the citation event). */
-  title: string;
-  /** PDF page number; absent for DOCX/legacy citations. */
-  page?: number;
-}
-
-interface Message {
-  id: string;
-  role: Role;
-  text: string;
-  citations?: Citation[];
-  streaming?: boolean;
-}
-
-const SUGGESTIONS = [
-  { key: "risks", label: "Summarize key risks" },
-  { key: "changes", label: "What changed vs last quarter?" },
-  { key: "actions", label: "List open action items" },
-];
-
+/** Generate a short unique id for client-only message rows. */
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+/** Render a compact relative time for the "past conversations" list; empty string when unparseable. */
 function formatWhen(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return "";
@@ -55,6 +35,7 @@ function formatWhen(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+/** Animated "assistant is typing" indicator shown while the first chunk of an answer has not arrived. */
 function TypingDots() {
   return (
     <div className="flex items-center gap-1">
@@ -72,6 +53,7 @@ function TypingDots() {
   );
 }
 
+/** Round avatar that visually distinguishes assistant turns from the user's right-aligned bubbles. */
 function AssistantAvatar() {
   return (
     <div
@@ -83,6 +65,12 @@ function AssistantAvatar() {
   );
 }
 
+/**
+ * Chat page (M8) — RAG over the knowledge corpus, optionally scoped to one document
+ * (via `?docId=` or the scope picker), with direct chat-origin attachments.
+ * Streams assistant answers, renders markdown + inline [n] citation chips, and
+ * supports starting fresh or reopening a past conversation.
+ */
 export function ChatPage() {
   const [searchParams] = useSearchParams();
   const docId = searchParams.get("docId");
@@ -93,10 +81,10 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  // RAG scope: a single knowledge doc id, or null for the whole corpus (M8 / WEB-M8-2).
+  /* RAG scope: a single knowledge doc id, or null for the whole corpus (M8 / WEB-M8-2). */
   const [scopeDocId, setScopeDocId] = useState<string | null>(docId ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Chat-origin docs attached to this conversation (M8 / WEB-M8-4 direct mode).
+  /* Chat-origin docs attached to this conversation (M8 / WEB-M8-4 direct mode). */
   const [attachments, setAttachments] = useState<Document[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -108,7 +96,7 @@ export function ChatPage() {
   const scopeLabel = scopedDoc ? scopedDoc.title : "All documents";
 
   useEffect(() => {
-    listDocuments("knowledge").then(setDocs).catch(() => setDocs([]));
+    listDocuments(DOC_ORIGIN.knowledge).then(setDocs).catch(() => setDocs([]));
     listSessions().then(setSessions).catch(() => {});
   }, []);
 
@@ -117,10 +105,12 @@ export function ChatPage() {
     return () => a?.abort();
   }, []);
 
+  /** Apply a partial update to one message row by id. */
   function patchMessage(id: string, patch: Partial<Message>) {
     setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }
 
+  /** Abandon the current stream and reset to an empty, fresh conversation. */
   function newConversation() {
     abortRef.current?.abort();
     setCurrentSessionId(null);
@@ -130,6 +120,7 @@ export function ChatPage() {
     setPickerOpen(false);
   }
 
+  /** Load a past conversation's transcript and make it the active session. */
   async function openSession(id: string) {
     if (id === currentSessionId) return;
     abortRef.current?.abort();
@@ -145,8 +136,7 @@ export function ChatPage() {
           citations: m.citations?.map((c) => ({ doc: c.documentId, title: c.title ?? "", page: c.page })),
         })),
       );
-      // Attachments are not persisted per session (M8 minimal scope); the docs
-      // remain in Library and can be re-attached.
+      /* Attachments are not persisted per session (M8 minimal scope); the docs remain in Library and can be re-attached. */
       setAttachments([]);
       setInput("");
     } catch (e) {
@@ -154,8 +144,9 @@ export function ChatPage() {
     }
   }
 
+  /** Validate + upload selected files as chat-origin docs and add them to the attachment list. */
   async function handleFiles(files: FileList | File[]) {
-    const arr = Array.from(files).filter((f) => /\.(pdf|docx)$/i.test(f.name));
+    const arr = Array.from(files).filter((f) => isAcceptedFile(f));
     if (arr.length === 0) {
       toast("error", "Only PDF and DOCX files can be attached.");
       return;
@@ -174,15 +165,17 @@ export function ChatPage() {
     }
   }
 
+  /** Remove one attachment from the current conversation. */
   function removeAttachment(id: string) {
     setAttachments((prev) => prev.filter((d) => d.id !== id));
   }
 
+  /** Send a question: lazily create a server session, stream the answer, and fold in citations/errors. */
   async function send(raw: string) {
     const text = raw.trim();
     if (!text || busy) return;
 
-    // Lazily create a server session on the first message of a fresh conversation.
+    /* Lazily create a server session on the first message of a fresh conversation. */
     let sessionId = currentSessionId;
     if (!sessionId) {
       try {
@@ -225,8 +218,7 @@ export function ChatPage() {
         question: text,
         documentIds: scopeDocId ? [scopeDocId] : [],
         attachments: attachments.map((d) => d.id),
-        // sessionId drives server-side context + persistence (M8); `history` is
-        // retained as a client-side fallback in the API but omitted here.
+        /* sessionId drives server-side context + persistence (M8); `history` is retained as a client-side fallback in the API but omitted here. */
         sessionId: sessionId ?? undefined,
         onEvent,
         signal: controller.signal,
@@ -249,7 +241,8 @@ export function ChatPage() {
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
-        return; // unmount / navigation abort — leave the in-flight message as-is
+        /* unmount / navigation abort — leave the in-flight message as-is */
+        return;
       }
       const message = e instanceof Error ? e.message : String(e);
       toast("error", message);
@@ -265,6 +258,7 @@ export function ChatPage() {
     }
   }
 
+  /** Submit on Enter (Shift+Enter inserts a newline). */
   function onComposerKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -356,7 +350,7 @@ export function ChatPage() {
                         <TypingDots />
                       </div>
                     ) : (
-                      // M8 / WEB-M8-3: render markdown + inline [n] citation chips.
+                      /* M8 / WEB-M8-3: render markdown + inline [n] citation chips. */
                       <Markdown text={m.text} citations={m.citations} />
                     )}
                   </div>
@@ -520,7 +514,7 @@ export function ChatPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.docx"
+              accept={ACCEPT_ATTR}
               multiple
               className="hidden"
               onChange={(e) => {

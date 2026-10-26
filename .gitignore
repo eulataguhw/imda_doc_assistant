@@ -11,3 +11,4 @@ data/*.db*
 data/ollama-models/
 test-results/
 playwright-report/
+coverage/

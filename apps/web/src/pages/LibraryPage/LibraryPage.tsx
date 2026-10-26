@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { FileText, MessageSquarePlus, Trash2 } from "lucide-react";
-import { deleteDocument, listDocuments, type Document } from "../lib/api";
-import { getDocDisplayMeta } from "../lib/docMeta";
-import { StatusBadge } from "../components/StatusBadge";
-import { toast } from "../components/Toaster";
+import { deleteDocument, listDocuments, type Document } from "../../lib/api";
+import { getDocDisplayMeta } from "../../lib/docMeta";
+import { DOC_ORIGIN, ROUTE_CHAT, documentRoute } from "../../lib/constants";
+import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
+import { toast } from "../../components/Toaster/Toaster";
 
 /**
  * Card for a chat-origin document (M8 WEB-M8-9). These are files the user
@@ -63,7 +64,7 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
 
       <div className="min-w-0">
         <h3 className="line-clamp-2 text-sm font-medium">
-          <Link to={`/documents/${doc.id}`} className="hover:underline">
+          <Link to={documentRoute(doc.id)} className="hover:underline">
             {doc.title}
           </Link>
         </h3>
@@ -77,8 +78,8 @@ function Card({ doc, onDeleted }: { doc: Document; onDeleted: () => void }) {
   );
 }
 
+/** Presentational loading placeholder — hidden from AT; a single sr-only label is announced instead. */
 function SkeletonRows() {
-  // Presentational loading placeholder — hidden from AT; a single sr-only label is announced instead.
   return (
     <div aria-hidden="true" className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {[0, 1].map((i) => (
@@ -110,7 +111,7 @@ export function LibraryPage() {
 
   const load = () => {
     setError(null);
-    return listDocuments("chat")
+    return listDocuments(DOC_ORIGIN.chat)
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
@@ -164,7 +165,7 @@ export function LibraryPage() {
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
               No documents uploaded in chat yet.
             </p>
-            <Link to="/chat" className="text-sm font-medium hover:underline" style={{ color: "var(--accent)" }}>
+            <Link to={ROUTE_CHAT} className="text-sm font-medium hover:underline" style={{ color: "var(--accent)" }}>
               Open a conversation and drag & drop a PDF or DOCX into the composer →
             </Link>
           </div>
