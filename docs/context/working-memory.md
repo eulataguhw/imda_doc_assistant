@@ -1,9 +1,18 @@
 # Working Memory — Doc Assistant
 
-- **Updated:** 2026-10-26 (M8 implemented + verified: root build + API/web vitest + Playwright E2E all green)
-- **Goal status:** M8 done and paused at the milestone boundary. No commits yet (M4+M5+M6+M7+M8 all uncommitted — approval required).
+- **Updated:** 2026-10-26 (Tech-challenge gap-closure complete + verified + committed to `feat/web-ui`)
+- **Goal status:** Gap-closure DONE. All five required groups closed; every gate green. Committed as `c6e8817` (gap closure) + `d58ae51` (`/api/health`) on top of the M4–M8 refactor commit `272725d`. Not pushed (push only on request).
 
 ## Current state
+
+- **Gap-closure pass complete (2026-10-26):** Closed all five challenge gap groups against "AI-Powered Document Assistant | Frontend Engineer (Gen AI) v1.0".
+  - **Docs:** README rewritten + `ARCHITECTURE.md`, `DESIGN.md`, `TESTING.md`, `INNOVATION_ASSESSMENT.md` authored; claims verified against source (coverage floors, SSE contract, tokens).
+  - **Testing:** 7 API test files added → **83 tests** (13 files); coverage enforced ≥80% on all four metrics in BOTH apps — web aggregate 90.5/81.91/82.52/90.5, api 92.88/84.3/98.07/92.88. Snapshot + jest-axe deps present but not yet wired (documented as a known gap in TESTING.md).
+  - **DevOps:** `Dockerfile` + `docker-compose.yml`, GitHub Actions CI (lint + typecheck + test + both coverage gates), eslint + prettier configs, `.env.example`; added `GET /api/health` liveness endpoint so the compose healthcheck works (was polling a non-existent route) — live-verified HTTP 200.
+  - **Architecture:** React.lazy/Suspense code-splitting per page + `RouteFallback`; global state lifted to shared Zustand stores (`useSessionsStore`, `useDocumentsStore` with origin filtering via `selectByOrigin`) — single source of truth surviving route changes.
+  - **UI/a11y:** streaming cursor + message fade-in (reduced-motion safe), skip link, responsive nav wrap, `<main id="main">` landmark, WCAG AA contrast tokens.
+  - **Gates green:** lint 0/0 · web+api strict `tsc` clean · unit tests api 83/83 + web 69/69 · coverage ≥80% all four metrics both apps · Playwright E2E 5/5 (local-LLM streaming timeouts raised — CPU reasoning model ~100s+/completion, not a frontend defect).
+- Monorepo at `doc-assistant/`: `apps/api` (NestJS, :3001) + `apps/web` (React SPA, builds; dev proxy :5173 → :3001) + `data/doc-assistant.db` (node:sqlite). Backends: Ollama :11434 (nomic-embed-text), llama.cpp :8888 (`Qwen3.8-27B-Uncensored`, thinking model), Qdrant :6333 (collection `documents`).
 
 - Monorepo at `doc-assistant/`: `apps/api` (NestJS, :3001) + `apps/web` (React SPA, builds; dev proxy :5173 → :3001) + `data/doc-assistant.db` (node:sqlite). Backends: Ollama :11434 (nomic-embed-text), llama.cpp :8888 (`Qwen3.8-27B-Uncensored`, thinking model), Qdrant :6333 (collection `documents`).
 - **M8 implemented + verified (2026-10-26):** v3-M5 feature set — conversation history, selectable "Scoped to", real markdown + inline citation chips, in-chat drag-drop direct upload (parse → full text to LLM, no RAG), Knowledge/Library split, document deletion, and a unit+E2E harness. Schema: `documents.origin` (`knowledge`|`chat`) + nullable `content`; new `sessions`/`messages` tables. API: `POST /chat/documents`, `GET/POST /chat/sessions[/:id]`, `DELETE /documents/:id` (+Qdrant points for knowledge), origin filter, direct-mode prompt (one `citation` per attached doc). Web: ChatPage flagship (react-markdown+remark-gfm, `[n]`→chip → `/documents/:id`, scoped picker, composer dropzone, new/revisit history); Knowledge (renamed Library, keeps upload) + new Library (chat-only, no upload). **Gates green:** root build exit 0 · API vitest 18/18 · web vitest 20/20 · Playwright E2E 5/5 (26.2s) vs live stack. New deps: api `vitest`; web `react-markdown`,`remark-gfm` + devDeps `vitest`,`jsdom`,`@testing-library/*`,`@playwright/test`.
@@ -37,8 +46,8 @@
 
 ## Next action
 
-1. User live click-through of http://localhost:5173 — Chat (attach→cited answer, RAG, new/revisit history), Knowledge (upload+delete), Library (chat-only list+remove) — both themes — to close the "manual" checks.
-2. Commit M4+M5+M6+M7+M8 on explicit user approval only (one combined commit recommended).
+1. Gap-closure is committed to `feat/web-ui` (`c6e8817`, `d58ae51`). Push on explicit request only.
+2. Optional polish (not required, not done): wire the already-present snapshot + jest-axe deps into a web suite; add a document-comparison view or highlighted-PDF scroll-to-citation (challenge bonus items).
 3. Any new milestone starts from this boundary.
 
 ## Links
