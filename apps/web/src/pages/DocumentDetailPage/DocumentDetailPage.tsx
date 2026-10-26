@@ -38,26 +38,26 @@ export function DocumentDetailPage() {
 
   if (error || notFound) {
     return (
-      <main className="flex-1 mx-auto w-full max-w-4xl p-6">
+      <div className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
           <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
           <h1 className="text-xl font-semibold">{notFound ? "Not found" : "Document"}</h1>
           {error && <p style={{ color: "var(--error)" }}>Failed to load: {error}</p>}
           {notFound && !error && <p>No document with id "{id}".</p>}
         </div>
-      </main>
+      </div>
     );
   }
 
   if (!doc) {
     return (
-      <main className="flex-1 mx-auto w-full max-w-4xl p-6">
+      <div className="flex-1 mx-auto w-full max-w-4xl p-6">
         <div className="space-y-3">
           <BackLink to={ROUTE_KNOWLEDGE} label="Back to knowledge" />
           <h1 className="text-xl font-semibold">Document</h1>
           <p style={{ color: "var(--text-secondary)" }}>Loading…</p>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -65,7 +65,7 @@ export function DocumentDetailPage() {
   const isError = doc.status === "error";
 
   return (
-    <main className="flex-1 mx-auto w-full max-w-4xl p-6">
+    <div className="flex-1 mx-auto w-full max-w-4xl p-6">
       {doc.origin === "chat" ? (
         <BackLink to={ROUTE_LIBRARY} label="Back to library" />
       ) : (
@@ -162,6 +162,6 @@ export function DocumentDetailPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

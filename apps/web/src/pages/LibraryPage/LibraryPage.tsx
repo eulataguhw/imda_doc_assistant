@@ -118,7 +118,7 @@ export function LibraryPage() {
   }, [refresh]);
 
   return (
-    <main className="flex-1 w-full">
+    <div className="flex-1 w-full">
       <div className="mx-auto w-full max-w-4xl p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
@@ -180,6 +180,6 @@ export function LibraryPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

@@ -160,7 +160,7 @@ export function ChatPage() {
 
   return (
     <>
-      <main className="relative mx-auto flex w-full max-w-4xl flex-col px-6 pb-32 pt-8">
+      <div className="relative mx-auto flex w-full max-w-4xl flex-col px-6 pb-32 pt-8">
         {/* Polite live region announces streaming status to assistive tech (M7 / WEB-M7-2). */}
         <div aria-live="polite" className="sr-only">
           {busy ? "Assistant is responding…" : ""}
@@ -265,7 +265,7 @@ export function ChatPage() {
             )}
           </div>
         )}
-      </main>
+      </div>
 
       {/* Composer — document-scoped, with drag-and-drop upload (M8 / WEB-M8-2/4). */}
       <div
