@@ -76,7 +76,9 @@ test.describe("Chat — M8 direct mode, RAG mode, and session history", () => {
     });
     await page.locator("textarea").fill("Summarize the report in one sentence.");
     await page.getByRole("button", { name: "Send message" }).click();
-    await expect(page.locator('a[href^="/documents/"]').first()).toBeVisible({ timeout: STREAM_TIMEOUT });
+    await expect(page.locator('a[href^="/documents/"]').first()).toBeVisible({
+      timeout: STREAM_TIMEOUT,
+    });
 
     // Start a fresh conversation → the transcript clears.
     await page.getByRole("button", { name: "New conversation" }).click();

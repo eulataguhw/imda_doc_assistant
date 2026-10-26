@@ -35,9 +35,9 @@ const lastStream = (): StreamParams => {
   return calls[calls.length - 1][0] as StreamParams;
 };
 
-function renderPage() {
+function renderPage(initialEntries?: string[]) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries ?? ["/chat"]}>
       <ChatPage />
       <Toaster />
     </MemoryRouter>
@@ -124,6 +124,16 @@ describe("ChatPage (M8)", () => {
     expect(await screen.findByText("Brief")).toBeTruthy();
     expect(uploadChatDocument).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Remove Brief" })).toBeTruthy();
+    const scopedBtn = screen.getByRole("button", {
+      name: /Scoped to: current documents/i,
+    }) as HTMLButtonElement;
+    expect(scopedBtn.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Brief" }));
+    const unselectedBtn = screen.getByRole("button", {
+      name: /Scoped to: All documents/i,
+    }) as HTMLButtonElement;
+    expect(unselectedBtn.disabled).toBe(false);
   });
 
   it("rejects a non-PDF/DOCX attachment without uploading", () => {
@@ -235,5 +245,33 @@ describe("ChatPage (M8)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Summarize key risks/ }));
     await waitFor(() => expect(streamChat).toHaveBeenCalled());
     expect(lastStream().question).toBe("Summarize key risks");
+  });
+
+  it("starts a fresh session when navigating with ?docId= from knowledge page", async () => {
+    // Simulate an existing active session before navigating.
+    useSessionsStore.setState({
+      activeId: "s-existing",
+      messages: [
+        { id: "m1", role: "user", text: "old question" },
+        { id: "m2", role: "assistant", text: "old answer" },
+      ],
+    });
+    (listDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "d1", title: "Annual Report", status: "ready" },
+    ]);
+
+    renderPage(["/chat?docId=d1"]);
+
+    // The old session should be cleared (fresh conversation).
+    await waitFor(() => {
+      const state = useSessionsStore.getState();
+      expect(state.activeId).toBeNull();
+      expect(state.messages).toEqual([]);
+    });
+
+    // The scope label should display the selected document title.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Scoped to: Annual Report/i })).toBeTruthy()
+    );
   });
 });

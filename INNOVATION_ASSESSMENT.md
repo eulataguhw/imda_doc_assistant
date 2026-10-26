@@ -1,55 +1,118 @@
-# Innovation Assessment
+# Section 2: Innovation Assessment
 
-A first-person account of the engineering decisions I found most interesting in this build — and the tradeoffs behind them. This is not a feature list; it's about *why* the system is shaped the way it is, where I made non-obvious choices, and where I'm honest about what I left out.
+## Evolving the AI-Powered Document Assistant for Knowledge Workers
 
-## The core tension I was designing against
+Knowledge workers across policy analysis, legal review, medical research, and engineering spend hours synthesizing unstructured text. While our current implementation delivers a solid baseline—local-first RAG, progressive SSE streaming, inline citation chips linking to document sources, and resilient Zustand-backed state—scaling this assistant into an indispensable daily tool requires deliberate evolution in UX craft and frontend engineering.
 
-The brief asks for two things that usually pull in opposite directions: **production-quality frontend polish** and a **genuine Gen AI streaming experience**. Most "AI document assistant" demos treat the model as a black box you `fetch` once and render — which makes the streaming, citations, and error handling feel bolted on. My goal was to make those three things *load-bearing* parts of the architecture rather than decorations, while keeping the whole thing runnable locally with no API keys.
+Below is an architectural and UX roadmap for evolving Doc Assistant, addressing eight key dimensions while referencing our existing component hierarchy and state architecture.
 
-## One continuous streaming loop, not a fetch-and-render
+---
 
-The most consequential decision was how I drew the boundary between "the model" and "the app." Rather than treating chat as `POST → JSON → render`, I modeled it as a **single long-lived SSE conversation** that carries three kinds of event — *citations*, *deltas*, and a *terminal* frame — over one connection.
+### 1. Progressive Disclosure: Contextual Depth Without Cognitive Overload
 
-That forces several decisions to be made deliberately:
+**The Problem:** Advanced capabilities (temperature/sampling adjustment, chunk inspection, multi-document cross-filtering, and system prompt tuning) overwhelm first-time users who just want quick answers.
 
-- **Citations arrive before the answer.** The server emits each retrieved context item first, so the UI can surface "this is grounded in these sources" as the tokens land, instead of re-parsing the final text for references afterward. Citations are part of the protocol, not a post-hoc extraction.
-- **The error taxonomy depends on where you are in the stream.** Before headers flush, a failure is a normal HTTP 502 with a JSON body — the client handles it like any request error. *After* headers flush, the connection is open and can't change status, so a mid-stream failure becomes an in-band SSE `error` frame. The client treats both identically ("show a friendly message"), but the server has to know which channel is available at that moment. Getting this right was more work than it looks, because a naive implementation either hangs the UI or shows a raw stack trace depending on *when* the model drops.
-- **Client disconnect cancels upstream generation.** When the user navigates away mid-answer, I cancel the model's response body server-side so we stop paying for tokens that will never be read. That's a small line of code but it's the difference between a demo and something you'd leave running.
+**Actionable Evolution:**
 
-## Two trust domains, not one document list
+- **Tiered UI Layers:** Keep the default [`ChatPage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/ChatPage/ChatPage.tsx) intentionally streamlined (composer + suggestion chips). Introduce a sliding drawer or "Inspector Rail" triggered by clicking any inline citation chip or typing `/` slash commands.
+- **Explainability on Demand:** When hovering or expanding an inline source chip rendered by [`Markdown`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx), reveal a mini-popover showing the exact passage chunk, vector relevance score, and the retrieval rank, rather than forcing a full route transition to [`DocumentDetailPage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/DocumentDetailPage/DocumentDetailPage.tsx).
+- **Context Lens:** In [`KnowledgePage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/KnowledgePage/KnowledgePage.tsx), present documents initially with clean metadata ([`StatusBadge`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/StatusBadge/StatusBadge.tsx), size, date). Clicking an "Insights" toggle expands a semantic cluster map showing document overlap and key topics generated during ingestion.
 
-I separated documents into two **origins** — `knowledge` (RAG corpus) and `chat` (documents attached to a specific conversation) — and that separation drives real behavior, not just a label:
+---
 
-- Knowledge documents are chunked, embedded, and indexed in Qdrant; chat documents are stored whole and served directly without retrieval.
-- Deleting a knowledge document also deletes its vector points; deleting a chat document does not (there are none).
-- The Library view shows *only* chat-origin docs and deliberately exposes **no upload control**, while Knowledge owns the upload dropzone. This is an intentional UI invariant — two different mental models for "a file I uploaded" — and it's enforced in code, tested in e2e, and asserted both ways (dropzone present on one view, absent on the other).
+### 2. Collaborative Knowledge Work: Shared Sessions, Annotations, and Threads
 
-I could have collapsed this into a single list with a flag. Keeping them as first-class origins made the retrieval-vs-direct paths honest instead of conditional spaghetti.
+**The Problem:** Research is rarely solitary. Analysts need to share findings, verify sources with peers, and record human corrections on AI-generated claims.
 
-## Provider abstraction that actually holds up
+**Actionable Evolution:**
 
-The LLM layer speaks **OpenAI-compatible HTTP** (`/chat/completions` with `stream: true`, `/embeddings`). That one seam is what lets the same code run against llama.cpp on `:8888`, Ollama on `:11434`, or a hosted endpoint — chosen purely by `LLM_BASE_URL` / `LLM_MODEL`. A few details made it real rather than aspirational:
+- **CRDT / WebSocket Sync for Sessions:** Evolve [`useSessionsStore`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/lib/stores/sessions.ts) from local SQLite to support collaborative multi-cursor sessions using Yjs or Automerge. Co-workers can view an AI streaming response concurrently with synchronized typing cursors.
+- **Threaded Inline Annotations:** Allow users to highlight any sentence in an assistant turn within [`Markdown.tsx`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx) to spawn a contextual comment thread ("Is this regulation still active for FY2026?").
+- **Human-in-the-Loop Grounding:** When an analyst flags an answer as inaccurate, store the peer correction in SQLite as a feedback node that automatically injects a cautionary guardrail into future prompt assemblies in `chat.service.ts`.
 
-- **The auth header is conditional.** I only send `Authorization: Bearer …` when `LLM_API_KEY` is set, because local llama.cpp/Ollama servers don't expect one and some reject the request for an unexpected header. It's a one-liner that would otherwise be a "works in my demo, fails in CI" bug.
-- **Embeddings can live on a different box than chat.** `EMBED_BASE_URL` defaults to the chat base URL but can diverge — which is how you'd run cheap local embeddings while using a hosted model for generation.
-- **No native driver dependency.** The API uses Node's built-in `node:sqlite`, so there's no `better-sqlite3` rebuild step and no platform-specific build matrix to babysit in Docker.
+---
 
-The honest limit of the indexing queue: it's an in-process FIFO, so a restart can't finish a job that was mid-flight. I handle this explicitly — on module init, any row still marked `processing` (orphaned by a prior process) is reconciled rather than left dangling forever. That's a deliberate "good enough for local-first" choice; a durable queue would be the upgrade path if this ever needed to survive horizontal scaling.
+### 3. Trust, Transparency, and Answer Provenance
 
-## State as a first-class citizen
+**The Problem:** Hallucination and vague sourcing erode confidence in high-stakes domains (legal, medical, policy).
 
-The frontend keeps all shared state in **two Zustand stores** (documents, sessions) created with the curried `create<State>()` form, and I was careful about a subtle trap: selectors must return **stable references**, not fresh arrays, or `useSyncExternalStore` re-renders on every store touch. Deriving filtered slices in the render body instead of inside the selector is what keeps navigation cheap.
+**Actionable Evolution:**
 
-The payoff is that state **survives route changes** because it lives outside the component tree: leave Chat, go to Library, come back — the conversation and document list are exactly where you left them, with no remount flicker and no duplicated copies of "the documents." This was a deliberate rejection of per-component `useState` for anything shared, which is where most React apps accumulate stale-state bugs.
+- **Grounded Verification Heatmap:** Enhance our SSE protocol so that along with `citation` and `chunk` events, the backend streams token-level source attribution spans. In [`Markdown.tsx`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx), words directly backed by document text are subtly underlined in the theme accent color; ungrounded synthesis or speculative bridges are flagged with a low-confidence indicator.
+- **Dual-Pane Source Verification:** Clicking any citation splits the screen into a side-by-side view: the chat transcript on the left, and a synchronized PDF canvas on the right with the cited excerpt highlighted in yellow and scrolled smoothly into view.
+- **Model Confidence Meter:** Expose model perplexity/top-logprobs as an accessible visual gauge beside the [`AssistantAvatar`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/ChatPage/ChatPage.tsx), with ARIA live announcements for screen reader users.
 
-## What I chose *not* to build
+---
 
-Honesty about scope matters as much as what's present:
+### 4. Deep Personalisation and Role-Based Modes
 
-- **No embedded PDF passage viewer.** Citations link to the source document's detail view; there's no in-PDF scroll-to-and-highlight of the exact cited passage. That would be the natural next step and I'd rather ship clean citations than a half-finished viewer.
-- **No model picker in the UI.** The chat model is fixed via config. Adding a dropdown without also handling per-model token limits, context windows, and streaming quirks would be false flexibility.
-- **Snapshot and jest-axe suites are present as dependencies but not yet wired in.** I'd rather grow them deliberately than add churn; structural accessibility assertions (roles, labels, live regions) already gate the current behavior.
+**The Problem:** A paralegal, a research scientist, and an executive need vastly different synthesis styles from the exact same policy brief.
 
-## What I'm proudest of
+**Actionable Evolution:**
 
-The thing that surprised me is how much *coherence* falls out when you refuse to treat the model as a black box. Once streaming, citations, error handling, and provider choice are all expressed through one explicit protocol and one config seam, the whole system becomes testable LLM-free (stub the boundary) *and* runnable locally (point it at a real server) — two properties that usually require separate code paths. That's the part I'd point to first if asked what makes this more than a demo.
+- **Persona Archetypes:** Introduce a lightweight persona switcher in [`AppShell`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/AppShell/AppShell.tsx) or the chat header (e.g. _Executive Brief_ with bulleted takeaways, _Technical Deep-Dive_ with verbatim citations, _Socratic Challenger_ that probes inconsistencies).
+- **Persistent Tone & Length Tokens:** Persist user preferences in `localStorage` alongside the existing `next-themes` configuration, injecting custom system instructions (`concise`, `verbatim`, `tabular`) into the `POST /api/chat/stream` payload without requiring manual prompt engineering every turn.
+- **Corpus Tagging & Saved Collections:** Allow users to tag documents in [`useDocumentsStore`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/lib/stores/documents.ts) (e.g. `#compliance-2026`, `#clinical-trial-q3`) and scope queries to specific tags with simple `@tag` mentions in the composer.
+
+---
+
+### 5. Offline and Low-Bandwidth Resilience: Graceful Degradation
+
+**The Problem:** Mobile knowledge workers on trains or flights face intermittent connectivity where a dropped TCP connection kills long-running generation.
+
+**Actionable Evolution:**
+
+- **Browser-Local Ingestion & Inference:** Scaffold WebAssembly runtimes (Transformers.js with ONNX for client-side embedding generation; WebLLM with tiny 1B–3B models for local summarization). When offline, the app switches from the remote NestJS API to local IndexedDB vector storage and client inference.
+- **Stream Resumption with Sequence IDs:** Extend [`useChatStream`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/hooks/useChatStream.ts) with monotonic sequence numbers on SSE `chunk` frames. If a mobile network drops mid-response, the client automatically issues a `POST /api/chat/stream/resume?sessionId=...&lastSeq=...`, transparently stitching the remainder of the response without losing tokens already rendered.
+- **Optimistic Offline Queue:** Queued questions typed while offline are stored in Zustand and synchronized immediately upon window `online` events, displaying a polite status badge in [`Toaster`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Toaster/Toaster.tsx).
+
+---
+
+### 6. Multimodal Knowledge Ingestion and Input
+
+**The Problem:** Significant organizational knowledge is locked in hand-annotated printouts, whiteboard diagrams, audio briefings, and webinar transcripts.
+
+**Actionable Evolution:**
+
+- **Voice Queries with Streaming Dictation:** Add a microphone affordance in the chat composer using the Web Speech API or client-side Whisper WebAssembly, streaming real-time transcription directly into the input textarea.
+- **OCR and Visual Document Understanding:** Extend [`extract.ts`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/api/src/documents/extract.ts) to accept images (`.png`, `.jpg`) and scanned PDFs using OCR (Tesseract.js or vision-capable models), extracting diagrams, tables, and handwritten notes into structured markdown chunks.
+- **Visual Chart & Diagram Generation:** When users ask questions like _"Compare the Q1 vs Q2 revenue trends in these reports"_, instruct the model to return Mermaid diagrams or Vega-Lite specs, rendered dynamically by [`Markdown.tsx`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx).
+
+---
+
+### 7. Performance at Scale: Handling Massive Document Corpora in the Browser
+
+**The Problem:** As a knowledge base grows to thousands of documents and millions of tokens, standard DOM rendering degrades client responsiveness and causes memory bloat.
+
+**Actionable Evolution:**
+
+- **Virtualized Library & Chat Feeds:** Replace static document grids in [`KnowledgePage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/KnowledgePage/KnowledgePage.tsx) and long message lists in [`ChatPage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/ChatPage/ChatPage.tsx) with windowed virtual lists (`@tanstack/react-virtual`). Only visible DOM nodes are rendered, maintaining 60 FPS scrolling regardless of library size.
+- **Web Worker Vector Pre-Filtering:** Offload document search, client-side metadata filtering, and fuzzy regex matching to a dedicated Web Worker thread, keeping the main React render thread free of computational latency.
+- **Chunk-Stream Windowing:** In [`useChatStream.ts`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/hooks/useChatStream.ts), batch incoming SSE tokens using `requestAnimationFrame` throttles (every 16ms) to prevent excessive React 19 reconciliation cycles during ultra-fast inference (e.g. Groq/Cerebras at >300 tokens/sec).
+
+---
+
+### 8. Comprehensive Internationalisation (i18n) and RTL Support
+
+**The Problem:** Global knowledge teams review legal and technical documents in multiple languages, including Right-to-Left (RTL) scripts such as Arabic and Hebrew.
+
+**Actionable Evolution:**
+
+- **Dynamic RTL Layout Direction:** Bind document text direction dynamically. When Arabic or Hebrew text is parsed in [`Markdown.tsx`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx), set `dir="rtl"` on the specific message block while keeping [`AppShell`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/AppShell/AppShell.tsx) in the user's interface language.
+- **Cross-Lingual Retrieval-Augmented Generation:** Augment `chat.service.ts` with cross-lingual embedding models (e.g. `multilingual-e5-large`), enabling a user to ask questions in English and retrieve accurate citations from Spanish, German, or Japanese source documents, with translated quote callouts.
+- **Localized Design System Tokens:** Replace directional Tailwind classes (`pl-4`, `mr-2`) with CSS logical properties (`ps-4`, `me-2`) across all components to ensure flawless layout mirroring under RTL locales.
+
+---
+
+### Summary Matrix
+
+| Evolution Area             | Target User Need                              | Primary Codebase Hook / Component                                                                                                                                                                                   | Technical Impact                                   |
+| :------------------------- | :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------- |
+| **Progressive Disclosure** | Low initial cognitive load; rich expert tools | [`ChatPage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/ChatPage/ChatPage.tsx), [`Markdown`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx) | Citation popovers, contextual drawers              |
+| **Collaboration**          | Multi-stakeholder peer verification           | [`useSessionsStore`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/lib/stores/sessions.ts)                                                                                                           | Yjs/WebSocket CRDT shared sessions                 |
+| **Trust & Provenance**     | Zero-tolerance for ungrounded hallucination   | [`Markdown`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/Markdown/Markdown.tsx), `apps/api/src/chat`                                                                                    | Token-level citation heatmap, dual-pane PDF viewer |
+| **Personalisation**        | Varied synthesis formats (executive vs legal) | [`AppShell`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/components/AppShell/AppShell.tsx), `env.ts`                                                                                               | Persona tokens in state, custom system prompts     |
+| **Offline Resilience**     | Mobile productivity without internet          | [`useChatStream`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/hooks/useChatStream.ts)                                                                                                              | WebAssembly local inference, SSE stream resume     |
+| **Multimodal Input**       | Non-text documents (handwritten notes, voice) | [`extract.ts`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/api/src/documents/extract.ts), Chat composer                                                                                                    | Web Speech API, OCR, dynamic Mermaid graphs        |
+| **Scale Performance**      | Libraries with 10,000+ files and long chats   | [`KnowledgePage`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/pages/KnowledgePage/KnowledgePage.tsx), `useChatStream`                                                                              | Virtualized windowing, rAF token batching          |
+| **i18n & RTL**             | Multilingual global organizations             | [`globals.css`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/styles/globals.css), `chat.service.ts`                                                                                                 | CSS logical properties, multilingual retrieval     |

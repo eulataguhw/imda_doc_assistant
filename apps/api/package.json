@@ -6,7 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "start": "node --env-file=.env dist/main.js"
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=apps/api/.env dist/main.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.2.0",

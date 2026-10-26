@@ -85,9 +85,15 @@ export function useChatStream({ scopeDocId, attachments }: UseChatStreamOptions)
           title: event.data.title,
           page: event.data.page,
         });
+        useSessionsStore.getState().patchMessage(asstId, {
+          citations: [...citations],
+        });
       } else if (event.type === "chunk") {
         answer += event.data.delta;
-        useSessionsStore.getState().patchMessage(asstId, { text: answer });
+        useSessionsStore.getState().patchMessage(asstId, {
+          text: answer,
+          citations: citations.length > 0 ? [...citations] : undefined,
+        });
       } else if (event.type === "error") {
         streamError = event.data.message || "Unknown chat error";
       }
@@ -96,7 +102,7 @@ export function useChatStream({ scopeDocId, attachments }: UseChatStreamOptions)
     try {
       await streamChat({
         question: text,
-        documentIds: scopeDocId ? [scopeDocId] : [],
+        documentIds: attachments.length > 0 ? [] : scopeDocId ? [scopeDocId] : [],
         attachments: attachments.map((d) => d.id),
         /* sessionId drives server-side context + persistence (M8); `history` is retained as a client fallback in the API but omitted here. */
         sessionId: sessionId ?? undefined,

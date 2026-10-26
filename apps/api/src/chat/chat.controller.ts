@@ -120,6 +120,19 @@ export class ChatController {
         llmRes = await this.chat.openCompletion(
           this.chat.buildMessagesDirect(question, history, directDocs)
         );
+      } else if (documentIds.length > 0) {
+        const directForScoped = this.chat.loadDirectContext(documentIds);
+        if (directForScoped.length > 0) {
+          directDocs = directForScoped;
+          llmRes = await this.chat.openCompletion(
+            this.chat.buildMessagesDirect(question, history, directDocs)
+          );
+        } else {
+          citations = await this.chat.retrieve(question, documentIds);
+          llmRes = await this.chat.openCompletion(
+            this.chat.buildMessages(question, history, citations)
+          );
+        }
       } else {
         citations = await this.chat.retrieve(question, documentIds);
         llmRes = await this.chat.openCompletion(
@@ -142,8 +155,8 @@ export class ChatController {
       void llmRes.body?.cancel();
     });
 
-    // Emit citations: direct mode → one per attached doc; RAG → existing shape (with score).
-    if (directMode) {
+    // Emit citations: direct docs (attachments or direct content) → one per doc; RAG → with score.
+    if (directDocs.length > 0) {
       for (const d of directDocs) {
         send({
           type: "citation",

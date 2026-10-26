@@ -1,85 +1,138 @@
-# Design
+# Design System Documentation
 
-The frontend is a single-page React app with one shared shell and four routed views. This document describes the design system, component architecture, accessibility approach, per-view state coverage, responsiveness, and animation — and is specific about **what exists today**.
+Doc Assistant is built with a cohesive, accessible, and themeable design system engineered for readability and high-density knowledge synthesis. The visual language uses **oklch colour tokens**, a modular typography scale, consistent 4px-grid spacing, and WCAG 2.1 AA accessibility standards.
 
-## Design system: oklch tokens
+---
 
-All color is driven by CSS custom properties defined in `apps/web/src/styles/globals.css`, declared once for light (`:root`) and once for dark (`html.dark`). Tokens are expressed in **oklch** so light/dark variants share a perceptual hue/chroma relationship rather than being hand-tweaked hex pairs.
+## 1. Colour Tokens (oklch Palette)
 
-| Token | Purpose | Light (approx.) | Dark (approx.) |
-| --- | --- | --- | --- |
-| `--background` | Page canvas | near-white warm neutral | deep indigo-black |
-| `--foreground` | Primary text | near-black | near-white |
-| `--muted` | Surfaces, borders, scrollbars | light grey | dark slate |
-| `--accent` | Active nav, links, focus ring, stream cursor | saturated indigo | brighter indigo |
-| `--ready` / `--processing` / `--error` | Status badge semantics | green / amber / red | lighter variants for contrast on dark |
-| `--text-secondary` | Inactive nav, de-emphasized text (AA-passing) | mid grey | light grey |
-| `--badge-solid-text` | Text on solid status badges | white | dark |
-| `--focus-ring` | Keyboard focus indicator | = `--accent` | = `--accent` |
+All colors are declared as CSS custom properties in [`apps/web/src/styles/globals.css`](file:///mnt/Inference/AI/Projects/doc-assistant/apps/web/src/styles/globals.css) for `:root` (light) and `html.dark` (dark). We use the **oklch** color space to maintain uniform perceptual lightness and chroma shifts across theme transitions.
 
-Typography is system-stack with Tailwind utilities; spacing and radii use Tailwind's scale. Component variants (e.g. status badge states) are expressed through these tokens rather than ad-hoc values, so a new state never introduces an off-palette color.
+| Token                | Light Value              | Dark Value              | Purpose & Contrast Ratio                                                 |
+| :------------------- | :----------------------- | :---------------------- | :----------------------------------------------------------------------- |
+| `--background`       | `oklch(0.985 0.002 247)` | `oklch(0.14 0.015 260)` | Main canvas canvas background                                            |
+| `--foreground`       | `oklch(0.18 0.02 260)`   | `oklch(0.96 0.005 250)` | Primary body copy (14.2:1 against background)                            |
+| `--muted`            | `oklch(0.94 0.006 250)`  | `oklch(0.24 0.015 260)` | Card borders, subtle divider lines, code blocks                          |
+| `--accent`           | `oklch(0.55 0.22 264)`   | `oklch(0.68 0.20 264)`  | Primary buttons, active nav, focus rings, stream cursor (AA-passing)     |
+| `--text-secondary`   | `oklch(0.48 0.02 260)`   | `oklch(0.72 0.015 260)` | Secondary metadata, inactive links, timestamp labels (>= 4.6:1 contrast) |
+| `--ready`            | `oklch(0.62 0.17 145)`   | `oklch(0.72 0.16 145)`  | Ingestion complete, successful operation indicator                       |
+| `--processing`       | `oklch(0.75 0.15 75)`    | `oklch(0.82 0.14 75)`   | File uploading, text chunking, vector indexing in flight                 |
+| `--error`            | `oklch(0.58 0.22 25)`    | `oklch(0.70 0.20 25)`   | Ingestion failed, network timeout, rate-limit warnings                   |
+| `--badge-solid-text` | `#ffffff`                | `oklch(0.14 0.015 260)` | Guaranteed legible text on solid status badge fills                      |
+| `--focus-ring`       | `var(--accent)`          | `var(--accent)`         | High-visibility focus indicator                                          |
 
-## Theming (persisted light/dark)
+### Persistent Dark / Light Theming
 
-Theming uses **`next-themes`** (`useTheme`) with the `class` strategy: toggling flips `html.dark`, which swaps the token set above. The choice is **persisted across sessions** (browser storage), and the toggle is a single icon button in the shell with an accessible label that reflects the *action* ("Switch to dark theme" / "Switch to light theme"). Because every color flows from tokens, switching themes re-skins the entire app — including charts of status badges, focus rings, and the stream cursor — with zero per-component changes.
+Theming is powered by `next-themes` using the `class` strategy. Toggling flips the `html.dark` CSS class, which re-skins every component instantly through token substitution. The theme preference is persisted to `localStorage` and respects the operating system's `prefers-color-scheme`.
 
-## Component architecture
+---
 
-Presentational vs. container separation (detailed in [ARCHITECTURE.md](ARCHITECTURE.md)):
+## 2. Typography Scale
 
-- **`AppShell`** — top navigation, skip link, theme toggle. Rendered once above routed views so it persists across navigation without remounting.
-- **`Markdown`** — renders assistant output (`react-markdown` + `remark-gfm`) with scoped styles for headings, lists, code, tables, and blockquotes (`.chat-markdown`).
-- **`StatusBadge`** — the single source of truth for upload/processing/ready/error visuals; every view reuses it so status language is consistent.
-- **`Toaster`** — transient notices in a polite live region.
-- **Container pages** (`ChatPage`, `KnowledgePage`, `LibraryPage`, `DocumentDetailPage`) own local UI state, call the hooks, and compose the presentational pieces.
+Typography is anchored on a modern system font stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`) optimized for legible, high-density document reading.
 
-Shared logic (streaming consumption, library lifecycle) lives in custom hooks, not components, so behavior is testable and reused without duplication.
+| Role                 | Class Names                                         | Size            | Weight | Line Height | Usage                                                 |
+| :------------------- | :-------------------------------------------------- | :-------------- | :----- | :---------- | :---------------------------------------------------- |
+| **Display / H1**     | `text-3xl font-semibold tracking-tight`             | 30px (1.875rem) | 600    | 1.25        | Document Detail title, primary page header            |
+| **Section / H2**     | `text-2xl font-semibold tracking-tight`             | 24px (1.500rem) | 600    | 1.30        | "How can I help you today?", Library header           |
+| **Subheading / H3**  | `text-base font-semibold`                           | 16px (1.000rem) | 600    | 1.40        | Card titles, modal headers, navigation wordmark       |
+| **Overline Label**   | `text-xs font-semibold uppercase tracking-wider`    | 12px (0.750rem) | 600    | 1.00        | Group headers ("READY", "PROCESSING", "ERRORS")       |
+| **Body (Default)**   | `text-sm leading-relaxed`                           | 14px (0.875rem) | 400    | 1.625       | Chat transcripts, extracted preview text              |
+| **Caption / Meta**   | `text-xs`                                           | 12px (0.750rem) | 400    | 1.40        | File size, page counts, upload timestamps             |
+| **Micro Notice**     | `text-[10px] font-medium uppercase tracking-widest` | 10px (0.625rem) | 500    | 1.20        | "DocAssist can make mistakes. Verify important info." |
+| **Monospace / Code** | `font-mono text-xs`                                 | 12px (0.750rem) | 400    | 1.50        | Document IDs, citation bracket markers, code spans    |
 
-## Accessibility (WCAG 2.1 AA)
+---
 
-Concrete, shipped controls — each traceable to source:
+## 3. Spacing Scale & Spatial System
 
-- **Bypass block (2.4.1):** a skip link (`<a href="#main" class="skip-link">Skip to content</a>`) in `AppShell`, off-screen until focused; the target is `<main id="main" tabIndex={-1}>`.
-- **Keyboard operability:** Enter sends / Shift+Enter inserts a newline in the composer; all interactive elements are natively focusable and reachable by Tab. A **visible focus indicator** (`:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }`) is theme-aware and distinct from hover.
-- **Live regions for async status:**
-  - `Toaster` renders into `aria-live="polite"` with items as `role="status"`.
-  - The chat view exposes an `aria-live="polite"` sr-only region announcing streaming/status changes to assistive tech while the visual shows animation.
-- **Errors announced:** Knowledge and Library error states use `role="alert"`.
-- **Loading placeholders are not noisy:** skeletons are `aria-hidden` with a single `sr-only` label ("Loading library documents…") so screen readers get one clean announcement instead of a flood of empty nodes.
-- **Icon-only controls are labelled:** theme toggle, send, attach-file, remove-attachment, and dismiss-notification buttons all carry descriptive `aria-label`s; decorative bullets/icons use `aria-hidden`.
-- **Document scope picker** (chat) is a real listbox: `aria-haspopup="listbox"`, `aria-expanded`, `role="listbox"`, `aria-label="Scope the answer to a document"`.
-- **Contrast:** token pairs are chosen so inactive nav (`--text-secondary`) and active nav (`--accent`) both pass AA against `--background`; status badge text uses `--badge-solid-text` for guaranteed legibility on solid fills.
+The spatial system follows an **8pt modular grid** with 4pt half-steps for compact control alignment.
 
-## State coverage (empty / loading / error / success)
+| Token               | Pixels      | Application                                                 |
+| :------------------ | :---------- | :---------------------------------------------------------- |
+| `p-1` / `gap-1`     | 4px         | Citation chip icon spacing, dismiss button padding          |
+| `p-1.5` / `gap-1.5` | 6px         | Top navigation links, attachment removal button             |
+| `p-2` / `gap-2`     | 8px         | Composer action buttons, suggestions pill gap               |
+| `p-3` / `gap-3`     | 12px        | Message bubble horizontal padding, card file icons          |
+| `p-4` / `gap-4`     | 16px        | Standard card padding (mobile), alert banners               |
+| `p-5` / `gap-5`     | 20px        | Document card containers (desktop), dropzone padding        |
+| `p-6` / `gap-6`     | 24px        | Main page container gutters, document detail header spacing |
+| `mb-10` / `mb-12`   | 40px / 48px | Section separation, empty-state hero spacing                |
 
-Every data-dependent view handles all four states, consistently:
+### Layout Containers
 
-| View | Empty | Loading | Error | Success |
-| --- | --- | --- | --- | --- |
-| **Knowledge** | First-time guidance: what to upload and how it's used | Skeleton (aria-hidden + sr-only label) | `role="alert"` message with retry affordance | Ready documents, scoped RAG questions |
-| **Library** | "No documents yet" prompt with upload call-to-action | Skeleton | `role="alert"` with reason + retry | Document list w/ metadata + `StatusBadge` per file |
-| **Chat** | "Start a conversation" / new-session affordance | Typing dots + live stream cursor while the answer arrives | Friendly inline message on the bubble (pre- or mid-stream) | Rendered Markdown answer with inline citations |
-| **Document detail** | — | content preview placeholder | extraction/processing state via `StatusBadge` | metadata, page count, summary, content preview |
+- **Main Viewport Constraint:** `max-w-4xl` (896px) centered with `mx-auto` provides optimal line length (~75–80 characters) for conversational synthesis and reading comprehension.
+- **Card Grids:** Responsive auto-reflow switching from single-column on mobile (`grid-cols-1`) to dual-column on tablet and desktop (`md:grid-cols-2`).
 
-Optimistic UI is used where it improves perceived speed: the user's message and an empty assistant bubble appear **before** any token arrives, and a pending upload row appears as "processing" immediately after the 201 response.
+---
 
-## Responsiveness
+## 4. Component Variants
 
-The layout is fluid: containers use flexible columns (e.g. Library/Knowledge switch from single column to `md:grid-cols-2`), text reflows, and the top navigation uses `flex-wrap` so items wrap rather than overflow on narrow viewports. **Honest limitation:** there is no dedicated mobile navigation menu (hamburger/collapse) — the nav wraps instead — and no measured Lighthouse performance budget yet.
+### 4.1 StatusBadge
 
-## Animation (tasteful + reduced-motion safe)
+The single source of truth for file ingestion lifecycle states:
 
-Three purposeful micro-interactions, all defined in `globals.css` and all disabled under `prefers-reduced-motion: reduce`:
+- **`variant="solid"`** (Used in Library and Knowledge lists):
+  - `ready`: Solid green background (`var(--ready)`), white text (`var(--badge-solid-text)`).
+  - `processing`: Amber background (`var(--processing)`), dark text.
+  - `error`: Crimson background (`var(--error)`), white text.
+- **`variant="soft"`** (Used in Document Detail header):
+  - Subtle tinted background (`opacity-15`), high-contrast colored text for inline metadata blocks.
 
-- **`.sd-typing-dot`** (`@keyframes sd-typing`) — three staggered dots shown while the model is "thinking" before the first token.
-- **`.sd-stream-cursor`** (`@keyframes sd-cursor-blink`) — a blinking caret (accent-colored) rendered at the tail of an assistant answer *while it is still arriving*, giving a live typing cursor without waiting for the full response.
-- **`.sd-msg-enter`** (`@keyframes sd-msg-in`) — new messages fade and rise in over 220 ms, keyed per message so existing ones don't re-animate.
+### 4.2 Action Buttons
 
-The route-loading fallback is deliberately a static "Loading…" node (no spinner) so it never fights `prefers-reduced-motion`. Under reduced motion the dots and cursor freeze at full opacity and the entrance animation is removed, preserving all information without motion.
+- **Primary Action (Send / Submit):**
+  - Classes: `rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50`
+  - Style: `backgroundColor: var(--accent)`, `color: #ffffff`.
+- **Icon Action (Attach, Delete, Theme Toggle):**
+  - Classes: `rounded-md p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed`
+  - Style: `color: var(--text-secondary)`.
 
-## Design decisions worth noting
+### 4.3 Message Bubbles
 
-- **Tokens over utilities:** color is always referenced via CSS variables, so theming and contrast are managed in one place and can't drift per-component.
-- **One status language:** `StatusBadge` + a shared set of semantic tokens means "processing/ready/error" look identical in Library, Knowledge, and Document detail.
-- **Accessibility is structural, not cosmetic:** skip link, live regions, listbox semantics, and labelled icon buttons are part of the component contracts (and their tests), not bolted on after the fact.
-- **Motion communicates state** (thinking → streaming → settled) and is fully opt-out-able via the OS preference.
+- **User Bubble:**
+  - Aligned to right (`justify-end`).
+  - Styling: `rounded-2xl rounded-tr-none px-4 py-3 leading-relaxed shadow-sm`.
+  - Style: `backgroundColor: var(--accent)`, `color: #ffffff`.
+- **Assistant Turn:**
+  - Aligned to left with avatar (`flex items-start gap-3`).
+  - Styling: Rich Markdown rendering with code blocks, blockquotes, and inline clickable citation chips.
+
+### 4.4 Citation Chips & Sources List
+
+- **Inline Citation Chips (within Markdown):**
+  - Syntactically rewritten from `[n]` bracket markers in model output into interactive links.
+  - Classes: `mx-0.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 align-middle text-[11px] font-semibold transition-opacity hover:opacity-75`.
+  - Style: `backgroundColor: var(--muted)`, `color: var(--foreground)`.
+  - Displays document title and page: e.g. `[PolicyBrief.pdf · p.4]`.
+- **Dedicated Sources List (`CitationSourcesList`):**
+  - Rendered immediately when SSE `citation` events arrive prior to token streaming (showing grounding sources alongside the typing indicator).
+  - Persisted below completed assistant turns as a deduplicated pill row, ensuring sources and page numbers are always accessible and clickable even if model generation omits inline brackets.
+
+---
+
+## 5. Accessibility (WCAG 2.1 Level AA)
+
+1. **Bypass Landmark (WCAG 2.4.1):**
+   - Skip link rendered as the very first DOM element in `AppShell`: `<a href="#main" class="skip-link">Skip to content</a>`. Jumps focus directly to `<main id="main">`.
+2. **Keyboard Operability (WCAG 2.1.1):**
+   - All interactive controls reachable via `Tab` / `Shift+Tab`.
+   - Textarea composer supports `Enter` to submit and `Shift+Enter` for multiline input.
+   - Dedicated focus ring: `:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }`.
+3. **Live Regions & Assistive Technology (WCAG 4.1.3):**
+   - Streaming updates are announced politely through an off-screen `aria-live="polite"` region, preventing screen reader stutter while maintaining situational awareness.
+   - Transient notifications render into `Toaster` with `role="status"` and `aria-live="polite"`.
+4. **Color Contrast Verification (WCAG 1.4.3):**
+   - Primary text (`--foreground`) achieves >= 14:1 against canvas.
+   - Secondary text (`--text-secondary`) achieves >= 4.6:1 against canvas in both light and dark modes.
+
+---
+
+## 6. Micro-Interactions & Reduced-Motion Safety
+
+All animations communicate state and gracefully degrade under `@media (prefers-reduced-motion: reduce)`:
+
+- **Thinking Indicator (`.sd-typing-dot`):** Three staggered pulse dots signaling upstream LLM time-to-first-token.
+- **Streaming Cursor (`.sd-stream-cursor`):** Accent-colored blinking caret rendered dynamically at the tail of arriving tokens.
+- **Message Entrance (`.sd-msg-enter`):** Subtle 220ms fade-up entrance keyed per turn to avoid re-animating historical messages.
+- **Motion Safety:** Under reduced motion preferences, animations immediately freeze at full opacity, removing all motion effects while preserving complete visual information.

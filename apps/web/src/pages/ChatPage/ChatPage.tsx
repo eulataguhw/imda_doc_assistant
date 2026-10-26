@@ -1,13 +1,48 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Check, ChevronDown, FileText, Link2, Paperclip, Plus, Send, X } from "lucide-react";
 import { uploadChatDocument, type Document } from "../../lib/api";
-import { ACCEPT_ATTR, DOC_ORIGIN, isAcceptedFile } from "../../lib/constants";
+import { ACCEPT_ATTR, isAcceptedFile } from "../../lib/constants";
 import { toast } from "../../components/Toaster/Toaster";
 import { Markdown } from "../../components/Markdown/Markdown";
+import { CHIP_CLASS } from "../../components/Markdown/constants";
 import { useChatStream } from "../../hooks/useChatStream";
 import { useDocuments } from "../../hooks/useDocuments";
 import { SUGGESTIONS } from "./constants";
+import type { Citation } from "./types";
+
+/** Render the list of unique cited sources below or alongside the assistant message. */
+function CitationSourcesList({ citations }: { citations?: Citation[] }) {
+  if (!citations || citations.length === 0) return null;
+  // Deduplicate by doc + page
+  const unique = Array.from(new Map(citations.map((c) => [`${c.doc}-${c.page ?? 0}`, c])).values());
+  return (
+    <div
+      className="flex flex-wrap items-center gap-1.5 pt-2"
+      style={{ borderTop: "1px solid var(--muted)" }}
+      aria-label="Sources referenced in this answer"
+    >
+      <span
+        className="text-[11px] font-semibold uppercase tracking-wider"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Sources:
+      </span>
+      {unique.map((c, i) => (
+        <Link
+          key={`${c.doc}-${c.page ?? i}`}
+          to={`/documents/${encodeURIComponent(c.doc)}`}
+          className={CHIP_CLASS}
+          style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+        >
+          <FileText className="size-3" />
+          <span>{c.title || "Document"}</span>
+          {typeof c.page === "number" ? <span className="opacity-70">· p.{c.page}</span> : null}
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 /** Render a compact relative time for the "past conversations" list; empty string when unparseable. */
 function formatWhen(iso: string): string {
@@ -83,15 +118,36 @@ export function ChatPage() {
     attachments,
   });
 
-  /* Knowledge docs for the scope picker (global library store, knowledge origin). */
-  const { documents: docs, load: loadDocs } = useDocuments(DOC_ORIGIN.knowledge);
+  /* All ready library docs for the scope picker. */
+  const { documents: allDocs, load: loadDocs } = useDocuments();
 
   useEffect(() => {
     void loadDocs();
   }, [loadDocs]);
 
-  const scopedDoc = docs.find((d) => d.id === scopeDocId) ?? null;
-  const scopeLabel = scopedDoc ? scopedDoc.title : "All documents";
+  /* When navigating from Knowledge/DocumentDetail with ?docId=, start a fresh
+     conversation scoped to that document instead of reusing the active session. */
+  const prevDocIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (docId && docId !== prevDocIdRef.current) {
+      newConversation();
+      setScopeDocId(docId);
+      setAttachments([]);
+      setInput("");
+      setPickerOpen(false);
+    }
+    prevDocIdRef.current = docId;
+  }, [docId]); // eslint-disable-line react-hooks/exhaustive-deps -- newConversation identity is stable
+
+  const readyDocs = allDocs.filter((d) => d.status === "ready");
+  const scopedDoc = readyDocs.find((d) => d.id === scopeDocId) ?? null;
+
+  const hasAttachments = attachments.length > 0 || uploadingCount > 0;
+  const scopeLabel = hasAttachments
+    ? "current documents"
+    : scopedDoc
+      ? scopedDoc.title
+      : "All documents";
 
   /** Wrap the store-backed new-conversation to also clear presentation-local state. */
   function handleNewConversation() {
@@ -243,11 +299,16 @@ export function ChatPage() {
                   <AssistantAvatar />
                   <div className="max-w-[90%] space-y-4">
                     {m.streaming && m.text === "" ? (
-                      <div
-                        className="flex w-24 items-center justify-center rounded-2xl rounded-tl-none px-4 py-4"
-                        style={{ backgroundColor: "var(--muted)" }}
-                      >
-                        <TypingDots />
+                      <div className="space-y-3">
+                        {m.citations && m.citations.length > 0 && (
+                          <CitationSourcesList citations={m.citations} />
+                        )}
+                        <div
+                          className="flex w-24 items-center justify-center rounded-2xl rounded-tl-none px-4 py-4"
+                          style={{ backgroundColor: "var(--muted)" }}
+                        >
+                          <TypingDots />
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -256,6 +317,9 @@ export function ChatPage() {
                         {m.streaming && (
                           /* Live typing cursor while the answer is still streaming (WEB-6). */
                           <span className="sd-stream-cursor" aria-hidden="true" />
+                        )}
+                        {m.citations && m.citations.length > 0 && (
+                          <CitationSourcesList citations={m.citations} />
                         )}
                       </>
                     )}
@@ -303,22 +367,32 @@ export function ChatPage() {
             )}
 
             <div className="flex items-center justify-between gap-2 px-4 pt-3">
-              {/* Scope picker (M8 / WEB-M8-2): choose the RAG corpus doc, or All. */}
+              {/* Scope picker (M8 / WEB-M8-2): choose the document to scope to, or All. Disabled when documents are uploaded/attached. */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setPickerOpen((o) => !o)}
+                  onClick={() => {
+                    if (!hasAttachments) setPickerOpen((o) => !o);
+                  }}
+                  disabled={hasAttachments}
+                  aria-disabled={hasAttachments}
                   aria-haspopup="listbox"
-                  aria-expanded={pickerOpen}
-                  className="flex items-center gap-1.5 text-xs font-medium [color:var(--text-secondary)] transition-colors hover:[color:var(--foreground)]"
+                  aria-expanded={!hasAttachments && pickerOpen}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                    hasAttachments
+                      ? "cursor-not-allowed opacity-60 [color:var(--text-secondary)]"
+                      : "[color:var(--text-secondary)] hover:[color:var(--foreground)]"
+                  }`}
                 >
                   <Link2 className="size-3.5" style={{ color: "var(--accent)" }} />
                   <span>Scoped to: {scopeLabel}</span>
-                  <ChevronDown
-                    className={`size-3.5 transition-transform ${pickerOpen ? "rotate-180" : ""}`}
-                  />
+                  {!hasAttachments && (
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${pickerOpen ? "rotate-180" : ""}`}
+                    />
+                  )}
                 </button>
-                {pickerOpen && (
+                {!hasAttachments && pickerOpen && (
                   <>
                     <div
                       className="fixed inset-0 z-40"
@@ -347,7 +421,7 @@ export function ChatPage() {
                           )}
                         </button>
                       </li>
-                      {docs.map((d) => (
+                      {readyDocs.map((d) => (
                         <li key={d.id}>
                           <button
                             type="button"

@@ -57,19 +57,60 @@ export class ChatService {
         body: JSON.stringify(body),
       }
     );
-    if (!res.ok) {
+    let citations: ChatCitation[];
+    if (res.status === 404) {
+      citations = [];
+    } else if (!res.ok) {
       throw new Error(`Document search failed: ${res.status} ${res.statusText}`);
+    } else {
+      const json = (await res.json()) as {
+        result?: Array<{ score: number; payload?: Record<string, unknown> }>;
+      };
+      citations = (json.result ?? []).map((p) => ({
+        documentId: String(p.payload?.document_id ?? ""),
+        title: String(p.payload?.title ?? ""),
+        ...(typeof p.payload?.page === "number" ? { page: p.payload.page } : {}),
+        score: p.score,
+        text: String(p.payload?.text ?? ""),
+      }));
     }
-    const json = (await res.json()) as {
-      result?: Array<{ score: number; payload?: Record<string, unknown> }>;
-    };
-    return (json.result ?? []).map((p) => ({
-      documentId: String(p.payload?.document_id ?? ""),
-      title: String(p.payload?.title ?? ""),
-      ...(typeof p.payload?.page === "number" ? { page: p.payload.page } : {}),
-      score: p.score,
-      text: String(p.payload?.text ?? ""),
-    }));
+
+    if (documentIds.length > 0 && citations.length === 0) {
+      // Scoped document fallback: check if SQLite has content or summary for this document
+      const stmt = db.prepare(
+        "SELECT id, title, summary, content, pages FROM documents WHERE id = ?"
+      );
+      for (const id of documentIds) {
+        const row = stmt.get(id) as unknown as
+          | {
+              id: string;
+              title: string;
+              summary?: string | null;
+              content?: string | null;
+              pages?: number | null;
+            }
+          | undefined;
+        if (row && typeof row.content === "string" && row.content.trim() !== "") {
+          citations.push({
+            documentId: row.id,
+            title: row.title,
+            ...(row.pages != null ? { page: row.pages } : {}),
+            score: 1.0,
+            text: row.content,
+          });
+        } else if (row && typeof row.summary === "string" && row.summary.trim() !== "") {
+          citations.push({
+            documentId: row.id,
+            title: row.title,
+            ...(row.pages != null ? { page: row.pages } : {}),
+            score: 1.0,
+            text: row.summary,
+          });
+        }
+      }
+    }
+
+    return citations;
   }
 
   /** API-M6-3/4: context-grounded prompt; history capped at last 6; empty retrieval still answers. */
@@ -97,7 +138,7 @@ export class ChatService {
     ];
   }
 
-  /** M8 (API-CHAT-5): load chat-origin documents by id for direct answering. Skips ids with no stored content. */
+  /** M8 (API-CHAT-5): load documents by id for direct answering. Skips ids with no stored content. */
   loadDirectContext(attachments: string[]): DirectDoc[] {
     const stmt = db.prepare(
       "SELECT id, title, content, pages FROM documents WHERE origin = 'chat' AND id = ?"

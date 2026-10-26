@@ -14,7 +14,7 @@ function renderShell(activeItem: ActiveSection) {
   return render(
     <MemoryRouter>
       <AppShell activeItem={activeItem} />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 

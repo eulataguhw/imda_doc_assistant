@@ -46,13 +46,11 @@ describe("api.ts M8 helpers (WEB-M8-4/5)", () => {
   });
 
   it("uploadChatDocument posts multipart with the optional title", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 201,
-        json: async () => ({ id: "c9", title: "T", pages: 4 }),
-      });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: "c9", title: "T", pages: 4 }),
+    });
     vi.stubGlobal("fetch", fetchMock);
     const file = new File(["hello"], "a.pdf", { type: "application/pdf" });
     expect(await uploadChatDocument(file, "My Doc")).toMatchObject({ id: "c9", pages: 4 });
@@ -151,13 +149,11 @@ describe("api.ts M8 streaming + error helpers (WEB-M8-5)", () => {
   it("streamChat rejects before any event on a non-2xx response, using the JSON message", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 500,
-          json: async () => ({ message: "server down" }),
-        })
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "server down" }),
+      })
     );
     await expect(streamChat({ question: "q", onEvent: () => {} })).rejects.toThrow(/server down/);
   });
@@ -227,13 +223,11 @@ describe("api.ts M8 streaming + error helpers (WEB-M8-5)", () => {
   });
 
   it("uploadDocument posts text content and resolves the DTO", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 201,
-        json: async () => ({ id: "t1", title: "T", status: "ready" }),
-      });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: "t1", title: "T", status: "ready" }),
+    });
     vi.stubGlobal("fetch", fetchMock);
     expect(await uploadDocument({ title: "T", content: "hello" })).toMatchObject({ id: "t1" });
     const [url, init] = fetchMock.mock.calls[0];
@@ -245,13 +239,11 @@ describe("api.ts M8 streaming + error helpers (WEB-M8-5)", () => {
     const file = new File(["x"], "a.pdf", { type: "application/pdf" });
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 400,
-          json: async () => ({ message: ["too big", "bad ext"] }),
-        })
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ message: ["too big", "bad ext"] }),
+      })
     );
     await expect(uploadDocumentFile(file, "A")).rejects.toThrow(/too big; bad ext/);
   });
